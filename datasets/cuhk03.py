@@ -78,8 +78,7 @@ class cuhk03(ImageDataset):
         tmp_query = []
         tmp_gallery = []
         for img_path, pid, camid,domain in train:
-            # img_path = self.root + img_path.split('datasets/')[-1]
-            img_path = img_path.split('datasets/')[-1]
+            img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             new_pid = self.dataset_name + "_" + str(pid)
             new_camid = self.dataset_name + "_" + str(camid)
             tmp_train.append((img_path, new_pid, new_camid,'cuhk03'))
@@ -89,7 +88,7 @@ class cuhk03(ImageDataset):
         pid_set = set()
         cam_set = set()
         for img_path, pid, camid,domain in gallery:
-            img_path = self.root + img_path.split('datasets/')[-1]
+            img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid_set.add(pid)
             cam_set.add(camid)
         self.pids = sorted(list(pid_set))
@@ -97,8 +96,7 @@ class cuhk03(ImageDataset):
         self.pid_dict_test = dict([(p, i) for i, p in enumerate(self.pids)])
         self.cam_dict_test = dict([(p, i) for i, p in enumerate(self.cams)])        
         for img_path, pid, camid,domain in gallery:
-            # img_path = self.root + img_path.split('datasets/')[-1]
-            img_path = img_path.split('datasets/')[-1]
+            img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid = self.pid_dict_test[pid]
             camid = self.cam_dict_test[camid]             
             pid += 767   
@@ -107,8 +105,7 @@ class cuhk03(ImageDataset):
         del tmp_gallery
 
         for img_path, pid, camid,domain in query:
-            img_path = img_path.split('datasets/')[-1]
-            # img_path = self.root + img_path.split('datasets/')[-1]
+            img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid = self.pid_dict_test[pid]
             camid = self.cam_dict_test[camid]             
             pid += 767     

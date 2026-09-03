@@ -22,6 +22,7 @@ from .cuhk02 import CUHK02
 from .grid import GRID
 from .prid import PRID
 from .viper import VIPeR
+from .occluded_duke import OccludedDuke
 
 
 __all__ = [k for k in globals().keys() if "builtin" not in k and not k.startswith("_")]

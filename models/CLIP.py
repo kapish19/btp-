@@ -79,7 +79,6 @@ class DomainClassifier(nn.Module):
         self.bn1 = nn.BatchNorm1d(hidden_size)
 
     def forward(self, x):
-
         out = self.fc1(x)
         if x.shape[0] == 1:
             out = out.repeat(2, 1)
@@ -91,7 +90,68 @@ class DomainClassifier(nn.Module):
             out = self.bn1(out)
             out = self.relu(out)
             out = self.fc2(out)
-            return F.log_softmax(out, dim=1)
+            return out # Return raw logits for CrossEntropyLoss
+
+class PartVisibilityGAT(nn.Module):
+    def __init__(self, d_model=768, num_parts=3):
+        super().__init__()
+        self.num_parts = num_parts
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.vis_predictor = nn.Sequential(
+            nn.Linear(d_model, d_model // 2),
+            nn.ReLU(),
+            nn.Linear(d_model // 2, 1),
+            nn.Sigmoid()
+        )
+        self.recon_gate = nn.Sequential(
+            nn.Linear(d_model * 2, d_model),
+            nn.Sigmoid()
+        )
+
+    def forward(self, patch_tokens, disable_part_branch=False):
+        if disable_part_branch:
+            # Return dummy zeros if disabled
+            B = patch_tokens.shape[0]
+            dummy_feat = torch.zeros(B, self.num_parts, patch_tokens.shape[-1], device=patch_tokens.device)
+            dummy_vis = torch.zeros(B, self.num_parts, 1, device=patch_tokens.device)
+            return dummy_feat, dummy_vis
+            
+        B, N, D = patch_tokens.shape
+        part_size = N // self.num_parts
+        
+        # 3-way split (Head, Torso, Legs) -> [B, 3, part_size, D]
+        parts = []
+        for i in range(self.num_parts):
+            start = i * part_size
+            end = start + part_size if i < self.num_parts - 1 else N
+            part_feat = patch_tokens[:, start:end, :].mean(dim=1) # [B, D]
+            parts.append(part_feat)
+        
+        part_nodes = torch.stack(parts, dim=1) # [B, 3, D]
+        
+        # GAT
+        Q = self.q_proj(part_nodes) # [B, 3, D]
+        K = self.k_proj(part_nodes) # [B, 3, D]
+        V = self.v_proj(part_nodes) # [B, 3, D]
+        
+        attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / (D ** 0.5)
+        attn_weights = F.softmax(attn_scores, dim=-1) # [B, 3, 3]
+        attended_nodes = torch.matmul(attn_weights, V) # [B, 3, D]
+        
+        # Visibility Prediction
+        vis_scores = self.vis_predictor(part_nodes) # [B, 3, 1]
+        
+        # Internal Reconstruction Gate
+        combined = torch.cat([part_nodes, attended_nodes], dim=-1) # [B, 3, 2D]
+        gate = self.recon_gate(combined) # [B, 3, D]
+        reconstructed = part_nodes * gate + attended_nodes * (1 - gate)
+        
+        # Masking by visibility
+        part_features = reconstructed * vis_scores
+        
+        return part_features, vis_scores
 
 
 class GradReverse(torch.autograd.Function):
@@ -145,56 +205,21 @@ class PromptLearner(nn.Module):
         nn.init.normal_(cls_vectors, std=0.02)
         dom_vectors = torch.empty(dataset_num, n_dm_ctx, ctx_dim, dtype=dtype)
         nn.init.normal_(dom_vectors, std=0.02)
-        self.clsctx = nn.Parameter(cls_vectors, requires_grad=True)
+        # We only keep dmctx for orthogonality loss, no clsctx
         self.dmctx = nn.Parameter(dom_vectors, requires_grad=True)
-
-        self.register_buffer("token_prefix", embedding[:, :n_ctx + 1, :])
-        self.register_buffer("token_suffix", embedding[:, n_ctx + 1 + n_cls_ctx:, :])
-
-        self.register_buffer("token_prefix_domain", embedding_domain[:, :n_ctx + 1, :])
-        self.register_buffer("token_intermediate_domain", embedding_domain[:, n_ctx + 1 + n_cls_ctx:n_ctx + 1 + n_cls_ctx+2, :])
-        self.register_buffer("token_suffix_domain", embedding_domain[:, n_ctx + 1 + n_cls_ctx+2 + n_dm_ctx:, :])
 
         self.num_class = num_class
         self.n_cls_ctx = n_cls_ctx
 
-    def forward(self, label,domain=None):
-        if domain is not None:
-            cls_ctx = self.clsctx[label]
-            cls_ctx_clone = cls_ctx.clone().detach()
-            b = label.shape[0]
-            dom_ctx = self.dmctx[domain]
-            prefix = self.token_prefix_domain.expand(b, -1, -1)
-            intermediate = self.token_intermediate_domain.expand(b, -1, -1)
-            suffix = self.token_suffix_domain.expand(b, -1, -1)
-            prompts = torch.cat(
-                [
-                    prefix,  # (n_cls, 1, dim)
-                    cls_ctx_clone,  # (n_cls, n_ctx, dim)
-                    intermediate,  # (n_cls, *, dim)
-                    dom_ctx,
-                    suffix,
-                ],
-                dim=1,
-            )
-            return prompts
-
-        cls_ctx = self.clsctx[label]
-        b = label.shape[0]
-
-        prefix = self.token_prefix.expand(b, -1, -1)
-        suffix = self.token_suffix.expand(b, -1, -1)
-
-        prompts = torch.cat(
-            [
-                prefix,  # (n_cls, 1, dim)
-                cls_ctx,  # (n_cls, n_ctx, dim)
-                suffix,  # (n_cls, *, dim)
-            ],
-            dim=1,
-        )
-
-        return prompts
+    def get_orthogonality_loss(self):
+        # ‖ĜᵀĜ − I_K‖_F
+        G = self.dmctx.squeeze(1) # [K, D]
+        G_norm = F.normalize(G, p=2, dim=1)
+        identity = torch.eye(G.shape[0], device=G.device)
+        return torch.norm(torch.matmul(G_norm, G_norm.t()) - identity, p='fro')
+        
+    def forward(self, label, domain=None):
+        return None # No prompt composition path in v1
 
 
 class Model(nn.Module):
@@ -239,67 +264,83 @@ class Model(nn.Module):
         self.bottleneck_proj = nn.BatchNorm1d(self.in_planes_proj)
         self.bottleneck_proj.bias.requires_grad_(False)
         self.bottleneck_proj.apply(weights_init_kaiming)
+        
+        # Local classifier
+        self.local_classifier = nn.Linear(self.in_planes_proj, self.num_classes, bias=False)
+        self.local_classifier.apply(weights_init_classifier)
 
         clip_model = load_clip_to_cpu(self.model_name, self.h_resolution, self.w_resolution, self.vision_stride_size)
         clip_model.to("cuda")
-        self.dcgrl = DomainClassifier(self.in_planes_proj, 128, domain_num)
-        self.dc = DomainClassifier(self.in_planes_proj, 128, domain_num)
+        
+        # Domain Classifier for GRL on CLS token
+        self.domain_classifier = DomainClassifier(self.in_planes, 128, domain_num)
+        
+        # Part branch
+        self.part_gat = PartVisibilityGAT(d_model=self.in_planes, num_parts=3)
+        
         self.image_encoder = clip_model.visual
 
         self.promptlearner = PromptLearner(num_classes, domain_num, clip_model.dtype, clip_model.token_embedding)
 
-        self.text_encoder = TextEncoder(clip_model)
-
     def forward(self, x=None, label=None, get_image=False, get_text=False, cam_label=None, view_label=None,
-                domain=None, prior=False, getdomain=False):
+                domain=None, prior=False, getdomain=False, grl_alpha=0.0, disable_grl=False, disable_part_branch=False):
         if get_text:
-            if getdomain:
-                prompts = self.promptlearner(label, domain)
-                text_features = self.text_encoder(prompts, self.promptlearner.tokenized_prompts_domain)
-                resd = self.dc(text_features.clone().detach())
-                return text_features, resd
+            return None, None # text pathway is disabled
 
-            prompts = self.promptlearner(label)
-            text_features = self.text_encoder(prompts, self.promptlearner.tokenized_prompts)
-            resd = self.dcgrl(self.grl(text_features))
-            return text_features, resd
-
-        if get_image == True:
-            image_features_last, image_features, image_features_proj = self.image_encoder(x)
-            if "RN" in self.model_name:
-                return image_features_proj[0]
-            elif "ViT" in self.model_name:
-                return image_features_proj[:, 0]
-
+        # Get visual features
         if "RN" in self.model_name:
+            # RN not modified for patch_tokens in this baseline, sticking to ViT logic
             image_features_last, image_features, image_features_proj = self.image_encoder(x)
-            img_feature_last = nn.functional.avg_pool2d(image_features_last, image_features_last.shape[2:4]).view(
-                x.shape[0], -1)
             img_feature = nn.functional.avg_pool2d(image_features, image_features.shape[2:4]).view(x.shape[0], -1)
             img_feature_proj = image_features_proj[0]
-
-
+            patch_tokens = image_features.view(x.shape[0], image_features.shape[1], -1).permute(0, 2, 1)
         elif "ViT" in self.model_name:
-            cv_embed = None
-            image_features_last, image_features, image_features_proj = self.image_encoder(x, cv_embed)
-            img_feature_last = image_features_last[:, 0]
-            img_feature = image_features[:, 0]
+            image_features_last, image_features, image_features_proj = self.image_encoder(x, None)
+            # image_features is [B, N, D]
+            img_feature = image_features[:, 0] # CLS token
             img_feature_proj = image_features_proj[:, 0]
-
+            patch_tokens = image_features[:, 1:] # Patch tokens
+            
         feat = self.bottleneck(img_feature)
         feat_proj = self.bottleneck_proj(img_feature_proj)
+        
+        # Domain logits via GRL
+        if disable_grl:
+            domain_logits = torch.zeros(x.shape[0], self.domain_classifier.fc2.out_features, device=x.device)
+        else:
+            domain_logits = self.domain_classifier(self.grl(img_feature))
+            
+        # Part / occlusion branch
+        part_features, vis_scores = self.part_gat(patch_tokens, disable_part_branch=disable_part_branch)
+        
+        # Process part features -> local_feat [B, 512] reusing self.image_encoder.proj? 
+        # Design doc: local_feat = proj(part_features.sum(dim=1)) 
+        part_sum = part_features.sum(dim=1)
+        if self.image_encoder.proj is not None:
+            local_feat_proj = part_sum @ self.image_encoder.proj
+        else:
+            local_feat_proj = part_sum
+            
+        local_feat = self.bottleneck_proj(local_feat_proj)
 
         if self.training:
             cls_score = self.classifier(feat)
             cls_score_proj = self.classifier_proj(feat_proj)
-            return [cls_score, cls_score_proj], [img_feature_last, img_feature, img_feature_proj], img_feature_proj
-
+            local_logits = self.local_classifier(local_feat)
+            
+            return {
+                'id_logits': cls_score_proj, 
+                'global_feat': feat_proj, 
+                'local_logits': local_logits, 
+                'local_feat': local_feat,
+                'vis_scores': vis_scores, 
+                'domain_logits': domain_logits,
+                'ortho_loss': self.promptlearner.get_orthogonality_loss()
+            }
         else:
-            if self.neck_feat == 'after':
-                # print("Test with feature after BN")
-                return torch.cat([feat, feat_proj], dim=1)
-            else:
-                return torch.cat([img_feature, img_feature_proj], dim=1)
+            # Inference: final = normalize(g + l)
+            final_feat = feat_proj + local_feat
+            return final_feat
 
 
     def load_param(self, trained_path):

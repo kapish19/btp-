@@ -1,0 +1,177 @@
+Using device: cpu
+Creating dummy datasets under /Users/diyabangera/.gemini/antigravity-ide/scratch/CLIP-FGDI/data_smoke_test...
+  ✓ Market-1501
+  ✓ MSMT17
+  ✓ CUHK-SYSU
+  ✓ CUHK03
+  ✓ Occluded-DukeMTMC
+Done.
+
+============================================================
+Running config: protocol2_Market
+============================================================
+  Train datasets: ['MSMT17', 'cuhk_sysu', 'cuhk03']
+  Test datasets: ['Market']
+  Classes (before subsampling): [4101, 11934, 1467]
+
+  Building data loaders...
+  Total train items: 90
+{'MSMT17': 0, 'cuhk03': 1, 'cuhk_sysu': 2}
+  Actual classes after subsampling: [6, 6, 6]
+pids 18
+{'MSMT17': 0, 'cuhk03': 1, 'cuhk_sysu': 2}
+{'Market': 0}
+  Classes (after subsampling): [6, 6, 6]
+
+  Building model...
+Resized position embedding: %s to %s torch.Size([197, 768]) torch.Size([197, 768])
+Position embedding resize to height:14 width: 14
+
+--- Gradient check (protocol2_Market) ---
+
+--- Mini training (protocol2_Market, 2 epochs per stage) ---
+dc.fc1.weight
+dc.fc1.bias
+dc.fc2.weight
+dc.fc2.bias
+dc.bn1.weight
+dc.bn1.bias
+  Stage-Prior (2 epochs)...
+72
+    Epoch 1: loss = 17.4384
+72
+    Epoch 2: loss = 12.8558
+  Stage-1 prompt learning (2 epochs)...
+    Stage-1 Epoch 1: loss = 6.5480
+    Stage-1 Epoch 2: loss = 5.7458
+  Stage-1 domain prompt (2 epochs)...
+    Stage-1-domain Epoch 1: loss = 8.0370
+    Stage-1-domain Epoch 2: loss = 7.9230
+  Stage-2 full training (2 epochs)...
+72
+    Stage-2 Epoch 1: loss = 27.1644
+72
+    Stage-2 Epoch 2: loss = 15.5646
+
+--- Checkpoint round-trip (protocol2_Market) ---
+
+--- Eval (protocol2_Market) ---
+=> Computing DistMat with euclidean_distance
+Note: number of gallery samples is quite small, got 25
+  Market - mAP: 23.7%
+  Market - CMC curve, Rank-1  :20.0%
+  Market - CMC curve, Rank-5  :60.0%
+  Market - CMC curve, Rank-10 :80.0%
+
+============================================================
+Running config: occluded_duke
+============================================================
+  Train datasets: ['Market', 'MSMT17', 'cuhk_sysu', 'cuhk03']
+  Test datasets: ['OccludedDuke']
+  Classes (before subsampling): [1502, 4101, 11934, 1467]
+
+  Building data loaders...
+  Total train items: 120
+{'MSMT17': 0, 'Market': 1, 'cuhk03': 2, 'cuhk_sysu': 3}
+  Actual classes after subsampling: [6, 6, 6, 6]
+pids 24
+{'MSMT17': 0, 'Market': 1, 'cuhk03': 2, 'cuhk_sysu': 3}
+{'OccludedDuke': 0}
+  Classes (after subsampling): [6, 6, 6, 6]
+
+  Building model...
+Resized position embedding: %s to %s torch.Size([197, 768]) torch.Size([197, 768])
+Position embedding resize to height:14 width: 14
+
+--- Gradient check (occluded_duke) ---
+
+--- Mini training (occluded_duke, 2 epochs per stage) ---
+dc.fc1.weight
+dc.fc1.bias
+dc.fc2.weight
+dc.fc2.bias
+dc.bn1.weight
+dc.bn1.bias
+  Stage-Prior (2 epochs)...
+96
+    Epoch 1: loss = 13.3951
+96
+    Epoch 2: loss = 13.4966
+  Stage-1 prompt learning (2 epochs)...
+    Stage-1 Epoch 1: loss = 9.3117
+    Stage-1 Epoch 2: loss = 8.1909
+  Stage-1 domain prompt (2 epochs)...
+    Stage-1-domain Epoch 1: loss = 7.2520
+    Stage-1-domain Epoch 2: loss = 7.1715
+  Stage-2 full training (2 epochs)...
+96
+    Stage-2 Epoch 1: loss = 17.4271
+96
+    Stage-2 Epoch 2: loss = 11.8770
+
+--- Checkpoint round-trip (occluded_duke) ---
+
+--- Eval (occluded_duke) ---
+=> Computing DistMat with euclidean_distance
+Note: number of gallery samples is quite small, got 25
+  OccludedDuke - mAP: 21.3%
+  OccludedDuke - CMC curve, Rank-1  :0.0%
+  OccludedDuke - CMC curve, Rank-5  :80.0%
+  OccludedDuke - CMC curve, Rank-10 :100.0%
+
+============================================================
+VERIFICATION REPORT
+============================================================
+  ✅ PASS: [protocol2_Market] promptlearner (clsctx) grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] promptlearner (dmctx) grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] classifier grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] classifier_proj grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] bottleneck grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] bottleneck_proj grad non-None/non-zero
+  ✅ PASS: [protocol2_Market] image_encoder has at least one non-zero grad
+  ✅ PASS: [protocol2_Market] stage-prior epoch 1 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-prior epoch 1 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-prior epoch 2 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-prior epoch 2 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-1 epoch 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-1 epoch 2 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-1-domain epoch 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-1-domain epoch 2 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-2 epoch 1 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-2 epoch 1 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-2 epoch 2 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] stage-2 epoch 2 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [protocol2_Market] all losses finite across all stages
+  ✅ PASS: [protocol2_Market] checkpoint round-trip identical outputs
+  ✅ PASS: [protocol2_Market] Market eval produces mAP
+  ✅ PASS: [protocol2_Market] Market eval produces CMC R1/R5/R10
+  ✅ PASS: [protocol2_Market] eval output format has mAP
+  ✅ PASS: [protocol2_Market] eval output format has Rank-1/5/10
+  ✅ PASS: [occluded_duke] promptlearner (clsctx) grad non-None/non-zero
+  ✅ PASS: [occluded_duke] promptlearner (dmctx) grad non-None/non-zero
+  ✅ PASS: [occluded_duke] classifier grad non-None/non-zero
+  ✅ PASS: [occluded_duke] classifier_proj grad non-None/non-zero
+  ✅ PASS: [occluded_duke] bottleneck grad non-None/non-zero
+  ✅ PASS: [occluded_duke] bottleneck_proj grad non-None/non-zero
+  ✅ PASS: [occluded_duke] image_encoder has at least one non-zero grad
+  ✅ PASS: [occluded_duke] stage-prior epoch 1 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-prior epoch 1 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-prior epoch 2 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-prior epoch 2 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-1 epoch 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-1 epoch 2 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-1-domain epoch 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-1-domain epoch 2 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-2 epoch 1 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-2 epoch 1 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-2 epoch 2 iter 0 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] stage-2 epoch 2 iter 1 is finite (no NaN/Inf)
+  ✅ PASS: [occluded_duke] all losses finite across all stages
+  ✅ PASS: [occluded_duke] checkpoint round-trip identical outputs
+  ✅ PASS: [occluded_duke] OccludedDuke eval produces mAP
+  ✅ PASS: [occluded_duke] OccludedDuke eval produces CMC R1/R5/R10
+  ✅ PASS: [occluded_duke] eval output format has mAP
+  ✅ PASS: [occluded_duke] eval output format has Rank-1/5/10
+
+Total: 50 checks, 50 passed, 0 failed
+============================================================

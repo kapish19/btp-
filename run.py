@@ -5,7 +5,6 @@ import warnings
 import torch
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 warnings.filterwarnings("ignore")
 from reidutils.meter import AverageMeter
 from reidutils.metrics import R1_mAP_eval
@@ -60,7 +59,7 @@ def get_model(args):
 def train_stage_prior(train_loader_stage2, model, criterion, optimizer, scheduler, args_train,
                       logger_train, log_path, epochs=3):
     logger_train.info('start stage-prior training')
-    device = 'cuda'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     loss_meter = AverageMeter()
     scaler = amp.GradScaler()
 
@@ -101,11 +100,11 @@ def train_stage_prior(train_loader_stage2, model, criterion, optimizer, schedule
 def train_stage1(train_loader_stage1, model, optimizer, scheduler, args_train, logger_train, log_path, get_domain=False,
                  epochs=120, omega=0.01):
     logger_train.info('start stage-1 training')
-    device = 'cuda'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     loss_meter = AverageMeter()
     accd_meter = AverageMeter()
     scaler = amp.GradScaler()
-    xent = SupConLoss('cuda')
+    xent = SupConLoss(device)
     dc = nn.CrossEntropyLoss()
     image_features = []
     labels = []
@@ -128,10 +127,10 @@ def train_stage1(train_loader_stage1, model, optimizer, scheduler, args_train, l
                     camids.append(camid)
                     image_features.append(img_feat.cpu())
 
-        labels_list = torch.stack(labels, dim=0).cuda()  # N
-        domains_list = torch.stack(domains, dim=0).cuda()  # N
-        cids_list = torch.stack(cids, dim=0).cuda()  # N
-        image_features_list = torch.stack(image_features, dim=0).cuda()
+        labels_list = torch.stack(labels, dim=0).to(device)  # N
+        domains_list = torch.stack(domains, dim=0).to(device)  # N
+        cids_list = torch.stack(cids, dim=0).to(device)  # N
+        image_features_list = torch.stack(image_features, dim=0).to(device)
 
         batch = args_train.batch_size
         num_image = labels_list.shape[0]
@@ -190,7 +189,7 @@ def train_stage1(train_loader_stage1, model, optimizer, scheduler, args_train, l
 def train_stage2(train_loader_stage2, model, criterion, optimizer, scheduler, testloaders, args_train, logger_train,
                  logger_test, log_path, epochs=60):
     logger_train.info('start stage-2 training')
-    device = 'cuda'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
     accd_meter = AverageMeter()
@@ -216,7 +215,7 @@ def train_stage2(train_loader_stage2, model, criterion, optimizer, scheduler, te
             with amp.autocast(enabled=True):
                 text_feature, _ = model(label=l_list, get_text=True)
             text_features.append(text_feature.cpu())
-        text_features = torch.cat(text_features, 0).cuda()
+        text_features = torch.cat(text_features, 0).to(device)
     for epoch in range(1, epochs + 1):
         model.train()
         start_time = time.time()
@@ -279,7 +278,7 @@ def test(testloaders, model, logger_test):
         logger_test.info("Validation Results of {}: ".format(name))
         for n_iter, (img, pids, camids, viewids, domain, cid) in enumerate(val_loader[0]):
             with torch.no_grad():
-                img = img.cuda()
+                img = img.to(device)
                 feat = model(img)
                 evaluator.update((feat, pids, camids))
         cmc, mAP, _, _, _, _, _ = evaluator.compute()
@@ -302,10 +301,20 @@ def test(testloaders, model, logger_test):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train')
     parser_test = argparse.ArgumentParser(description='test')
-    parsertrain, parsertest, logname = protocol_1(parser, parser_test)
+    
+    # Parse just the benchmark/domain first
+    temp_args, _ = parser.parse_known_args()
+    benchmark = getattr(temp_args, 'benchmark', 'protocol2')
+    held_out_domain = getattr(temp_args, 'held_out_domain', 'Market')
+    
+    if benchmark == 'protocol2':
+        parsertrain, parsertest, logname = protocol_2(parser, parser_test, held_out_domain)
+    else:
+        parsertrain, parsertest, logname = protocol_occluded_duke(parser, parser_test)
 
     args_train = parsertrain.parse_args()
     args_test = parsertest.parse_args()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     time_now = str(datetime.datetime.now())[:-7]
     log_path = os.path.join(args_train.log_path, logname + '_' + args_train.backbone + '_' + time_now)
     logger_train = setup_logger(args_train.model + '_' + args_train.backbone + '_train', log_path, if_train=True)
@@ -314,7 +323,7 @@ if __name__ == "__main__":
     logger_train.info("Training cfgs- {}".format(str(args_train)))
     logger_train.info("Running protocol- {}->{}".format(args_train.train_datasets, args_test.test_datasets))
 
-    model = get_model(args_train).cuda()
+    model = get_model(args_train).to(device)
     train_loader_stage1, train_loader_stage2, val_loaders = build_data_loader(args_train, args_test)
     criterion = make_loss(sum(args_train.classes))
 

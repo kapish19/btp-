@@ -1,0 +1,7 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Collecting torch>=2.0.0 (from -r requirements.txt (line 1))
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/ae/95/ae26263aceb3d57b821179f827d0e321373ed49423e603dd5906ab14a730/torch-2.8.0-cp39-none-macosx_11_0_arm64.whl (73.6 MB)
+                                              0.0/73.6 MB ? eta -:--:--
+  WARNING: Connection timed out while downloading.
+  WARNING: Attempting to resume incomplete download (0 bytes/73.6 MB, attempt 1)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/ae/95/ae26263aceb3d57b821179f827d0e321373ed49423e603dd5906ab14a730/torch-2.8.0-cp39-none-macosx_11_0_arm64.whl (73.6 MB)

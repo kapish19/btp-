@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# Datasets and Checkpoints
+data/
+data_smoke_test/
+logs/
+Occluded_Duke/
+Market-1501-v15.09.15/
+MSMT17_V2/
+cuhk_sysu/
+cuhk03/
+cuhk-03.mat
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
