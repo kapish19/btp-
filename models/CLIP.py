@@ -189,8 +189,9 @@ class PromptLearner(nn.Module):
         ctx_dim = 512
         n_ctx = 4
 
-        tokenized_prompts = clip.tokenize(ctx_init).cuda()
-        tokenized_prompts_domain = clip.tokenize(ctx_init_domain).cuda()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+        tokenized_prompts = clip.tokenize(ctx_init).to(device)
+        tokenized_prompts_domain = clip.tokenize(ctx_init_domain).to(device)
 
         with torch.no_grad():
             embedding = token_embedding(tokenized_prompts).type(dtype)
@@ -270,7 +271,9 @@ class Model(nn.Module):
         self.local_classifier.apply(weights_init_classifier)
 
         clip_model = load_clip_to_cpu(self.model_name, self.h_resolution, self.w_resolution, self.vision_stride_size)
-        clip_model.to("cuda")
+        # Use dynamic device
+        device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+        clip_model.to(device)
         
         # Domain Classifier for GRL on CLS token
         self.domain_classifier = DomainClassifier(self.in_planes, 128, domain_num)

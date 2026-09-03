@@ -7,13 +7,13 @@ from .trans import bulid_transforms
 
 
 def collate_fn(batch):
-    imgs, pids, camids, viewids, image_path, domains, cid = zip(*batch)
+    imgs, pids, camids, viewids, image_path, domains, cid, occ_masks = zip(*batch)
     pids = torch.tensor(pids, dtype=torch.int64)
     viewids = torch.tensor(viewids, dtype=torch.int64)
     camids = torch.tensor(camids, dtype=torch.int64)
     cid = torch.tensor(cid, dtype=torch.int64)
     domains = torch.tensor(domains, dtype=torch.int64)
-    return torch.stack(imgs, dim=0), pids, camids, viewids, domains, cid
+    return torch.stack(imgs, dim=0), pids, camids, viewids, domains, cid, torch.stack(occ_masks, dim=0)
 
 
 
@@ -26,7 +26,7 @@ def build_data_loader(args, args_test):
 
     train_transforms = bulid_transforms(args, is_train=True)
 
-    train_set = CommDataset(train_items, train_transforms)
+    train_set = CommDataset(train_items, train_transforms, is_train=True)
     num_workers = args.num_workers
 
     sampling_method = RandomIdentitySampler(train_items,args.batch_size, 4)
@@ -40,7 +40,7 @@ def build_data_loader(args, args_test):
 
     val_transforms = bulid_transforms(args_test,is_train=False)
 
-    train_set_normal = CommDataset(train_items, val_transforms)
+    train_set_normal = CommDataset(train_items, val_transforms, is_train=False)
     train_loader_stage_1 = DataLoader(
         train_set_normal, batch_size=args.batch_size, shuffle=True, num_workers=num_workers,
         collate_fn=collate_fn
@@ -52,7 +52,7 @@ def build_data_loader(args, args_test):
         dataset = DATASET_REGISTRY.get(elm)(root=args.data_path)
         test_items = dataset.query + dataset.gallery
 
-        val_set = CommDataset(test_items, val_transforms, relabel=False)
+        val_set = CommDataset(test_items, val_transforms, relabel=False, is_train=False)
 
         val_loader = DataLoader(
             val_set, batch_size=args_test.test_batch_size, shuffle=False, num_workers=num_workers,
@@ -75,12 +75,12 @@ def build_data_loaders(args, args_test, model):
         dataset = DATASET_REGISTRY.get(d)(root=args.data_path, combineall=args.combine_all)
         train_items.extend(dataset.train)
         trainstage1_items.append(dataset.train)
-        trainstage1_sets[d] = CommDataset(dataset.train,val_transforms,last_id=max_id)
+        trainstage1_sets[d] = CommDataset(dataset.train,val_transforms,last_id=max_id, is_train=False)
         max_id+=args.classes[i]
 
     train_transforms = bulid_transforms(args,is_train=True)
 
-    train_set = CommDataset(train_items, train_transforms)
+    train_set = CommDataset(train_items, train_transforms, is_train=True)
     num_workers = args.num_workers
 
     sampling_method = RandomIdentitySampler(train_items,args.batch_size, 4)
@@ -103,7 +103,7 @@ def build_data_loaders(args, args_test, model):
         dataset = DATASET_REGISTRY.get(elm)(root=args.data_path)
         test_items = dataset.query + dataset.gallery
 
-        val_set = CommDataset(test_items, val_transforms, relabel=False)
+        val_set = CommDataset(test_items, val_transforms, relabel=False, is_train=False)
 
         val_loader = DataLoader(
             val_set, batch_size=args_test.test_batch_size, shuffle=False, num_workers=num_workers,

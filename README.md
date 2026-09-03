@@ -1,8 +1,10 @@
-# CLIP-FGDI: Exploiting Vision-Language Model for Generalizable Person Re-Identification
+# DG-ReID: Domain-Generalizable Person Re-Identification via Synthetic Occlusion
 
-Reproduction of [CLIP-FGDI](https://arxiv.org/abs/2501.16065) (IEEE TIFS 2025).
+Implementation of DG-ReID, featuring:
+1. **Domain-Adversarial Global Branch** (Gradient Reversal Layer for domain invariance)
+2. **Visibility-Aware Part Branch** (PartVisibilityGAT supervised by synthetic occlusion masks)
 
-Reference implementation: [Qi5Lei/CLIP-FGDI](https://github.com/Qi5Lei/CLIP-FGDI)
+Built on top of the CLIP-FGDI baseline repository.
 
 ## Setup
 
@@ -105,15 +107,12 @@ python run.py --benchmark occluded_duke --data_path /path/to/data --device cuda
 |---|---|---|
 | `--debug_subset_ids` | 6 | 0 (default) |
 | `--batch_size` | 12 | 64 (default P=16, K=4) |
-| `--prior-epoch` | 2 | 3 |
-| `--prompt-epoch` | 2 | 120 |
-| `--prompt-domain-epoch` | 2 | 30 |
 | `--image-encoder-epoch` | 2 | 60 |
 | `--device` | cpu | cuda |
 
-## Final Results (Reference Table)
+## Final Results (Reference Tables)
 
-After running the full-scale benchmark suite (via `bash run_all_benchmarks.sh` on an NVIDIA GPU), the expected results should populate this table:
+After running the full-scale benchmark suite (via `bash run_all_benchmarks.sh` and `bash run_ablations.sh` on an NVIDIA GPU), the expected results populate these tables.
 
 ### Protocol 2: Leave-One-Out (mAP / Rank-1 / Rank-5 / Rank-10)
 
@@ -130,15 +129,22 @@ After running the full-scale benchmark suite (via `bash run_all_benchmarks.sh` o
 |---|---|---|---|---|---|
 | **Occluded-Duke** | *run pending* | *run pending* | *run pending* | *run pending* | *run pending* |
 
+### DG-ReID Ablation Study (Protocol 2 - Target: Market-1501)
+
+| Configuration | mAP (%) | Rank-1 (%) | Rank-5 (%) | Rank-10 (%) |
+|---|---|---|---|---|
+| **Full Model (DG-ReID)** | *run pending* | *run pending* | *run pending* | *run pending* |
+| **GRL Only (No Part Branch)** | *run pending* | *run pending* | *run pending* | *run pending* |
+| **Part Branch Only (No GRL)** | *run pending* | *run pending* | *run pending* | *run pending* |
+| **Neither (Baseline)** | *run pending* | *run pending* | *run pending* | *run pending* |
+
 ---
-*Note: A local smoke test on synthetic data was successfully executed on macOS MPS/CPU, passing 50/50 checks for gradient flow, loss finiteness, and checkpoint integrity.*
+*Note: A local smoke test on synthetic data was successfully executed on macOS MPS/CPU, passing checks for gradient flow, loss finiteness, and checkpoint integrity.*
 
 ## Architecture
 
-Three-stage learning:
-1. **Stage-Prior**: Warm up image encoder with ID + triplet loss
-2. **Stage-1**: Learn class-specific and domain-specific text prompts via contrastive alignment
-3. **Stage-2**: Joint fine-tuning with bidirectional text guidance (APN loss)
-
-Model: CLIP ViT-B/16 backbone with learnable text prompts and domain classifiers.
-**No GRL, no part/occlusion branch, no synthetic occlusion augmentation** — exact CLIP-FGDI reproduction.
+**DG-ReID Key Components:**
+1. **Positional Embeddings**: Bicubic interpolated to a 16x8 grid.
+2. **Domain-Adversarial Global Branch**: Applies a Domain Classifier and GRL to the CLS token to foster domain-invariant representations.
+3. **Visibility-Aware Part Branch**: Uses a Graph Attention Network (GAT) to process 3 bodily splits (Head, Torso, Legs) of patch tokens. Visibility prediction is supervised via Synthetic Occlusion augmentation (producing exact patch grid masks) during source-domain training.
+4. **Orthogonality Regularization**: Maintains $K=4$ orthogonal domain tokens as a regularizer without explicit text-prompt composition.
