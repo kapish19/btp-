@@ -9,7 +9,7 @@ class TotalLoss(nn.Module):
         super().__init__()
         self.xent = CrossEntropyLabelSmooth(num_classes=num_classes)
         self.triplet = TripletLoss(margin=0.3)
-        self.bce = nn.BCELoss()
+        self.bce = nn.BCEWithLogitsLoss()
         self.domain_xent = nn.CrossEntropyLoss()
         
         self.lambda_id = 1.0
