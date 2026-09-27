@@ -92,7 +92,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, testloaders, arg
 
             loss_meter.update(loss.item(), img.shape[0])
 
-            torch.cuda.synchronize()
+            # torch.cuda.synchronize()
             if (n_iter + 1) % args_train.log_period == 0:
                 logger_train.info(
                     "Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Base Lr: {:.2e}"

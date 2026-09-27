@@ -77,7 +77,12 @@ class cuhk03(ImageDataset):
         tmp_train = []
         tmp_query = []
         tmp_gallery = []
-        for img_path, pid, camid,domain in train:
+        for item in train:
+            if len(item) == 3:
+                img_path, pid, camid = item
+                domain = 2
+            else:
+                img_path, pid, camid, domain = item
             img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             new_pid = self.dataset_name + "_" + str(pid)
             new_camid = self.dataset_name + "_" + str(camid)
@@ -87,7 +92,12 @@ class cuhk03(ImageDataset):
 
         pid_set = set()
         cam_set = set()
-        for img_path, pid, camid,domain in gallery:
+        for item in gallery:
+            if len(item) == 3:
+                img_path, pid, camid = item
+                domain = 2
+            else:
+                img_path, pid, camid, domain = item
             img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid_set.add(pid)
             cam_set.add(camid)
@@ -95,7 +105,12 @@ class cuhk03(ImageDataset):
         self.cams = sorted(list(cam_set))
         self.pid_dict_test = dict([(p, i) for i, p in enumerate(self.pids)])
         self.cam_dict_test = dict([(p, i) for i, p in enumerate(self.cams)])        
-        for img_path, pid, camid,domain in gallery:
+        for item in gallery:
+            if len(item) == 3:
+                img_path, pid, camid = item
+                domain = 2
+            else:
+                img_path, pid, camid, domain = item
             img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid = self.pid_dict_test[pid]
             camid = self.cam_dict_test[camid]             
@@ -104,7 +119,12 @@ class cuhk03(ImageDataset):
         gallery = tmp_gallery
         del tmp_gallery
 
-        for img_path, pid, camid,domain in query:
+        for item in query:
+            if len(item) == 3:
+                img_path, pid, camid = item
+                domain = 2
+            else:
+                img_path, pid, camid, domain = item
             img_path = osp.join(self.root, img_path.split('datasets/')[-1])
             pid = self.pid_dict_test[pid]
             camid = self.cam_dict_test[camid]             

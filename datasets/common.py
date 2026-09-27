@@ -67,6 +67,7 @@ class SyntheticOcclusionAugment:
         return img_tensor, mask
 
 def read_image(file_name, format=None):
+    file_name = str(file_name).replace('\\', '/').replace('data/./data/', 'data/').replace('data/data/', 'data/').replace('./data/', 'data/')
     """
     Read an image into the given format.
     Will apply rotation and flipping if the image has such exif information.
