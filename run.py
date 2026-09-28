@@ -75,17 +75,16 @@ def train(train_loader, model, criterion, optimizer, scheduler, testloaders, arg
         for n_iter, (img, vid, _, _, domain, cid, occ_mask) in enumerate(train_loader):
             optimizer.zero_grad()
 
-            img = img.to(device, non_blocking=True)
-            target = vid.to(device, non_blocking=True)
-            domain = domain.to(device, non_blocking=True)
-            occ_mask_dev = occ_mask.to(device, non_blocking=True)
+            img = img.to(device)
+            target = vid.to(device)
+            domain = domain.to(device)
             
             with amp.autocast(enabled=True):
                 outputs = model(x=img, label=target, grl_alpha=grl_alpha, 
                                 disable_grl=args_train.disable_grl, 
                                 disable_part_branch=args_train.disable_part_branch)
                 loss = criterion(outputs, target, domain_labels=domain, stage=3, 
-                                 grl_alpha=grl_alpha, occ_mask=occ_mask_dev)
+                                 grl_alpha=grl_alpha, occ_mask=occ_mask.to(device))
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)

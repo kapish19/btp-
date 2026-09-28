@@ -42,7 +42,6 @@ def build_data_loader(args, args_test):
                                       batch_size=args.batch_size,
                                       sampler=sampling_method,
                                       num_workers=num_workers,
-                                      pin_memory=True,
                                       collate_fn=collate_fn)
 
 
@@ -51,7 +50,7 @@ def build_data_loader(args, args_test):
     train_set_normal = CommDataset(train_items, val_transforms, is_train=False)
     train_loader_stage_1 = DataLoader(
         train_set_normal, batch_size=args.batch_size, shuffle=True, num_workers=num_workers,
-        pin_memory=True, collate_fn=collate_fn
+        collate_fn=collate_fn
     )
 
     dataset_names = args_test.test_datasets
@@ -64,7 +63,7 @@ def build_data_loader(args, args_test):
 
         val_loader = DataLoader(
             val_set, batch_size=args_test.test_batch_size, shuffle=False, num_workers=num_workers,
-            pin_memory=True, collate_fn=collate_fn
+            collate_fn=collate_fn
         )
         val_loaders[elm] = [val_loader, len(dataset.query)]
 
@@ -104,13 +103,12 @@ def build_data_loaders(args, args_test, model):
                                       batch_size=args.batch_size,
                                       sampler=sampling_method,
                                       num_workers=num_workers,
-                                      pin_memory=True,
                                       collate_fn=collate_fn)
 
 
     train_loader_stage_1 = {d:DataLoader(
         trainstage1_set, batch_size=args.batch_size//4, shuffle=True, num_workers=num_workers,
-        pin_memory=True, collate_fn=collate_fn
+        collate_fn=collate_fn
     ) for d,trainstage1_set in trainstage1_sets.items()}
 
     dataset_names = args_test.test_datasets
@@ -123,7 +121,7 @@ def build_data_loaders(args, args_test, model):
 
         val_loader = DataLoader(
             val_set, batch_size=args_test.test_batch_size, shuffle=False, num_workers=num_workers,
-            pin_memory=True, collate_fn=collate_fn
+            collate_fn=collate_fn
         )
         val_loaders[elm] = [val_loader, len(dataset.query)]
     return train_loader_stage_1, train_loader_stage_2, val_loaders
