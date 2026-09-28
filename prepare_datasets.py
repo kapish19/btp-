@@ -88,9 +88,12 @@ def setup_data(data_dir="data"):
             print(f"  ✅ MSMT17_V2 linked from Drive: {found}")
         else:
             print("  📦 MSMT17 not in Drive. Downloading MSMT17 from Kaggle...")
-            os.system(f"kaggle datasets download -d pengcw1/msmt17 -p {data_dir}")
-            os.system(f"unzip -q {data_dir}/msmt17.zip -d {data_dir}")
-            if os.path.exists(f"{data_dir}/msmt17.zip"): os.remove(f"{data_dir}/msmt17.zip")
+            # Try public Kaggle MSMT17 datasets
+            for kaggle_msmt_id in ["minasasa/msmt17", "meowmeowmeowmeowmeow/msmt17", "pengcw1/msmt17"]:
+                res = os.system(f"kaggle datasets download -d {kaggle_msmt_id} -p {data_dir}")
+                if res == 0:
+                    os.system(f"unzip -q {data_dir}/*.zip -d {data_dir}")
+                    break
             if os.path.exists(os.path.join(data_dir, "MSMT17")) and not os.path.exists(msmt_target):
                 os.symlink("MSMT17", msmt_target)
             elif os.path.exists(os.path.join(data_dir, "MSMT17_V2")):
