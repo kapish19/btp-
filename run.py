@@ -56,13 +56,13 @@ def get_model(args):
     return model
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, testloaders, args_train, logger_train, logger_test, log_path, epochs=60):
+def train(train_loader, model, criterion, optimizer, scheduler, testloaders, args_train, logger_train, logger_test, log_path, epochs=60, start_epoch=1):
     logger_train.info('start training')
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     loss_meter = AverageMeter()
     scaler = amp.GradScaler()
     
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         model.train()
         start_time = time.time()
         loss_meter.reset()
@@ -98,10 +98,32 @@ def train(train_loader, model, criterion, optimizer, scheduler, testloaders, arg
                     "Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Base Lr: {:.2e}"
                     .format(epoch, (n_iter + 1), len(train_loader),
                             loss_meter.avg, scheduler.get_lr()[0]))
-        if epoch % args_train.checkpoint_period == 0:
-            torch.save(model.state_dict(),
-                       os.path.join(log_path,
-                                    args_train.model + str(datetime.datetime.now()) + '_epoch_{}.pth'.format(epoch)))
+
+        # Save checkpoint periodically and on final epoch
+        if epoch % args_train.checkpoint_period == 0 or epoch == epochs:
+            ckpt_state = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+            }
+            save_name = f"{args_train.model}_epoch_{epoch}.pth"
+            save_path = os.path.join(log_path, save_name)
+            torch.save(ckpt_state, save_path)
+            logger_train.info(f"💾 Checkpoint saved: {save_path}")
+
+            # Automatically persist directly to Google Drive so progress is never lost
+            drive_ckpt_dir = "/content/drive/MyDrive/dg_reid_checkpoints"
+            if os.path.exists("/content/drive/MyDrive"):
+                try:
+                    os.makedirs(drive_ckpt_dir, exist_ok=True)
+                    drive_save = os.path.join(drive_ckpt_dir, save_name)
+                    drive_latest = os.path.join(drive_ckpt_dir, "latest_checkpoint.pth")
+                    torch.save(ckpt_state, drive_save)
+                    torch.save(ckpt_state, drive_latest)
+                    logger_train.info(f"☁️ Synced checkpoint to Google Drive: {drive_save}")
+                except Exception as e:
+                    logger_train.warning(f"Could not sync checkpoint to Google Drive: {e}")
 
         if epoch % args_train.eval_period == 0:
             test(testloaders, model, logger_test)
@@ -184,6 +206,24 @@ if __name__ == "__main__":
     optimizer_image_encoder = make_optimizer_for_IE(model, args_train)
     scheduler_image_encoder = WarmupMultiStepLR(optimizer_image_encoder, [30, 50], 0.1, 0.1, 10, 'linear')
 
+    start_epoch = 1
+    resume_path = getattr(args_train, 'resume', '')
+    if resume_path and os.path.isfile(resume_path):
+        logger_train.info(f"🔄 Resuming from checkpoint: {resume_path}")
+        ckpt = torch.load(resume_path, map_location=device)
+        if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
+            model.load_state_dict(ckpt['model_state_dict'])
+            if 'optimizer_state_dict' in ckpt:
+                try: optimizer_image_encoder.load_state_dict(ckpt['optimizer_state_dict'])
+                except Exception: pass
+            if 'scheduler_state_dict' in ckpt:
+                try: scheduler_image_encoder.load_state_dict(ckpt['scheduler_state_dict'])
+                except Exception: pass
+            start_epoch = ckpt.get('epoch', 0) + 1
+        else:
+            model.load_state_dict(ckpt)
+        logger_train.info(f"✅ Resumed training from epoch {start_epoch}")
+
     train(train_loader=train_loader_stage2,
           model=model,
           criterion=criterion,
@@ -194,6 +234,7 @@ if __name__ == "__main__":
           logger_train=logger_train,
           logger_test=logger_test,
           log_path=log_path,
-          epochs=args_train.image_encoder_epoch)
+          epochs=args_train.image_encoder_epoch,
+          start_epoch=start_epoch)
 
     test(val_loaders, model, logger_test)
