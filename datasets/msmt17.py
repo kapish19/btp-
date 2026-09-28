@@ -1,231 +1,120 @@
-# encoding: utf-8
-
-"""
-
-@author:  l1aoxingyu
-
-@contact: sherlockliao01@gmail.com
-
-"""
-
-
-
-import sys
-
 import os
+import glob
+import re
+from .bases import BaseImageDataset
 
-import os.path as osp
-
-import pdb
-
-from .bases import ImageDataset
-
-from . import DATASET_REGISTRY
-
-##### Log #####
-
-# 22.01.2019
-
-# - add v2
-
-# - v1 and v2 differ in dir names
-
-# - note that faces in v2 are blurred
-
-TRAIN_DIR_KEY = 'train_dir'
-
-TEST_DIR_KEY = 'test_dir'
-
-VERSION_DICT = {
-
-    'MSMT17_V1': {
-
-        TRAIN_DIR_KEY: 'train',
-
-        TEST_DIR_KEY: 'test',
-
-    },
-
-    'MSMT17_V2': {
-
-        TRAIN_DIR_KEY: 'mask_train_v2',
-
-        TEST_DIR_KEY: 'mask_test_v2',
-
-    }
-
-}
-
-
-
-
-
-@DATASET_REGISTRY.register()
-
-class MSMT17(ImageDataset):
-
-    """MSMT17.
-
-    Reference:
-
-        Wei et al. Person Transfer GAN to Bridge Domain Gap for Person Re-Identification. CVPR 2018.
-
-    URL: `<http://www.pkuvmc.com/publications/msmt17.html>`_
-
-
-
-    Dataset statistics:
-
-        - identities: 4101.
-
-        - images: 32621 (train) + 11659 (query) + 82161 (gallery).
-
-        - cameras: 15.
-
+class MSMT17(BaseImageDataset):
     """
+    MSMT17
+    Reference:
+    Wei et al. Person Transfer GAN to Bridge Domain Gap for Person Re-Identification. CVPR 2018.
+    URL: http://www.pkuvmc.com/publications/msmt17.html
+    """
+    dataset_dir = 'MSMT17_V2'
 
-    # dataset_dir = 'MSMT17_V2'
-
-    dataset_url = None
-
-    dataset_name = 'msmt17'
-
-
-
-    def __init__(self, root='', **kwargs):
-
-        self.dataset_dir = root
-
-
-
-        has_main_dir = False
-
-        for main_dir in VERSION_DICT:
-
-            if osp.exists(osp.join(self.dataset_dir, main_dir)):
-
-                train_dir = VERSION_DICT[main_dir][TRAIN_DIR_KEY]
-
-                test_dir = VERSION_DICT[main_dir][TEST_DIR_KEY]
-
-                has_main_dir = True
-
-                break
-
-        assert has_main_dir, 'Dataset folder not found'
-
-
-
-        self.train_dir = osp.join(self.dataset_dir, main_dir, train_dir)
-
-        self.test_dir = osp.join(self.dataset_dir, main_dir, test_dir)
-
-        self.list_train_path = osp.join(self.dataset_dir, main_dir, 'list_train.txt')
-
-        self.list_val_path = osp.join(self.dataset_dir, main_dir, 'list_val.txt')
-
-        self.list_query_path = osp.join(self.dataset_dir, main_dir, 'list_query.txt')
-
-        self.list_gallery_path = osp.join(self.dataset_dir, main_dir, 'list_gallery.txt')
-
-
-
-        required_files = [
-
-            self.dataset_dir,
-
-            self.train_dir,
-
-            self.test_dir
-
-        ]
-
-        self.check_before_run(required_files)
-
-
-
-        train = self.process_dir(self.train_dir, self.list_train_path)
-
-        val = self.process_dir(self.train_dir, self.list_val_path)
-
-        query = self.process_dir(self.test_dir, self.list_query_path, is_train=False)
-
-        gallery = self.process_dir(self.test_dir, self.list_gallery_path, is_train=False)
-
-
-
-        num_train_pids = self.get_num_pids(train)
-
-        query_tmp = []
-
-        for img_path, pid, camid,domain in query:
-
-            import os
-            if os.path.exists(str(img_path).replace('\\', '/').replace('data/./data/', 'data/')):
-                query_tmp.append((img_path, pid+num_train_pids, camid,domain))
-
-        del query
-
-        query = query_tmp
-
-
-
-        gallery_temp = []
-
-        for img_path, pid, camid,domain in gallery:
-
-            import os
-            if os.path.exists(str(img_path).replace('\\', '/').replace('data/./data/', 'data/')):
-                gallery_temp.append((img_path, pid+num_train_pids, camid,domain))
-
-        del gallery
-
-        gallery = gallery_temp
-
+    def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
+        super(MSMT17, self).__init__()
         
+        # Auto-detect MSMT17 folder case-insensitively
+        possible_dirs = ['MSMT17_V2', 'MSMT17_V1', 'MSMT17', 'msmt17']
+        main_dir = None
+        
+        for p_dir in possible_dirs:
+            if os.path.exists(os.path.join(root, p_dir)):
+                main_dir = p_dir
+                break
+                
+        if main_dir is None and os.path.exists(root):
+            for d in os.listdir(root):
+                if 'msmt17' in d.lower() and os.path.isdir(os.path.join(root, d)):
+                    main_dir = d
+                    break
 
-        # Note: to fairly compare with published methods on the conventional ReID setting,
+        if main_dir is None:
+            main_dir = 'MSMT17_V2'
 
-        #       do not add val images to the training set.
+        self.dataset_dir = os.path.join(root, main_dir)
+        self.list_train_path = os.path.join(self.dataset_dir, 'list_train.txt')
+        self.list_val_path = os.path.join(self.dataset_dir, 'list_val.txt')
+        self.list_query_path = os.path.join(self.dataset_dir, 'list_query.txt')
+        self.list_gallery_path = os.path.join(self.dataset_dir, 'list_gallery.txt')
 
-        if 'combineall' in kwargs and kwargs['combineall']:
+        # Auto-detect train/test image folder
+        mask_train_cand = ['mask_train_v2', 'train_v2', 'train', 'mask_train', 'images_train']
+        for cand in mask_train_cand:
+            if os.path.exists(os.path.join(self.dataset_dir, cand)):
+                self.mask_train_dir = os.path.join(self.dataset_dir, cand)
+                break
+        else:
+            self.mask_train_dir = os.path.join(self.dataset_dir, 'mask_train_v2')
 
-            train += val
+        mask_test_cand = ['mask_test_v2', 'test_v2', 'test', 'mask_test', 'images_test']
+        for cand in mask_test_cand:
+            if os.path.exists(os.path.join(self.dataset_dir, cand)):
+                self.mask_test_dir = os.path.join(self.dataset_dir, cand)
+                break
+        else:
+            self.mask_test_dir = os.path.join(self.dataset_dir, 'mask_test_v2')
 
-        super(MSMT17, self).__init__(train, query, gallery, **kwargs)
+        train = self._process_dir(self.list_train_path, self.mask_train_dir, relabel=True)
+        val = self._process_dir(self.list_val_path, self.mask_train_dir, relabel=False)
+        query = self._process_dir(self.list_query_path, self.mask_test_dir, relabel=False)
+        gallery = self._process_dir(self.list_gallery_path, self.mask_test_dir, relabel=False)
 
+        if verbose:
+            print("=> MSMT17 loaded")
+            self.print_dataset_statistics(train, query, gallery)
 
+        self.train = train
+        self.query = query
+        self.gallery = gallery
 
-    def process_dir(self, dir_path, list_path, is_train=True):
+        self.num_train_pids, self.num_train_imgs, self.num_train_cams, self.num_train_vids = self.get_imagedata_info(self.train)
+        self.num_query_pids, self.num_query_imgs, self.num_query_cams, self.num_query_vids = self.get_imagedata_info(self.query)
+        self.num_gallery_pids, self.num_gallery_imgs, self.num_gallery_cams, self.num_gallery_vids = self.get_imagedata_info(self.gallery)
 
-        with open(list_path, 'r') as txt:
+    def _process_dir(self, list_path, img_dir, relabel=False):
+        if not os.path.exists(list_path):
+            return []
 
-            lines = txt.readlines()
+        with open(list_path, 'r') as f:
+            lines = f.readlines()
 
+        dataset = []
+        pid_container = set()
+        for line in lines:
+            line_str = line.strip()
+            if not line_str: continue
+            parts = line_str.split()
+            img_rel_path = parts[0]
+            pid = int(parts[1])
+            pid_container.add(pid)
 
+        pid2label = {pid: label for label, pid in enumerate(sorted(pid_container))}
 
-        data = []
+        for line in lines:
+            line_str = line.strip()
+            if not line_str: continue
+            parts = line_str.split()
+            img_rel_path = parts[0]
+            pid = int(parts[1])
+            if relabel:
+                pid = pid2label[pid]
+            
+            # Extract camera ID from filename
+            fname = os.path.basename(img_rel_path)
+            camid = 0
+            try:
+                camid = int(fname.split('_')[2])
+            except Exception:
+                pass
+                
+            full_img_path = os.path.join(img_dir, img_rel_path)
+            if not os.path.exists(full_img_path):
+                # Fallback check directly in img_dir/fname
+                full_img_path = os.path.join(img_dir, fname)
+                
+            if os.path.exists(full_img_path):
+                dataset.append((full_img_path, pid, camid, 0))
 
-
-
-        for img_idx, img_info in enumerate(lines):
-
-            img_path, pid = img_info.split(' ')
-
-            pid = int(pid)  # no need to relabel
-
-            camid = int(img_path.split('_')[2]) - 1  # index starts from 0
-
-            img_path = osp.join(dir_path, img_path)
-
-            if is_train:
-
-                pid = self.dataset_name + "_" + str(pid)
-
-                camid = self.dataset_name + "_" + str(camid)
-
-            import os
-            if os.path.exists(str(img_path).replace('\\', '/').replace('data/./data/', 'data/')):
-                data.append((img_path, pid, camid,'MSMT17'))
-
-        return data
+        return dataset
