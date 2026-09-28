@@ -31,7 +31,10 @@ class cuhk03(BaseImageDataset):
         self.detected_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_detected.mat')
         self.labeled_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_labeled.mat')
 
-        required_files = [self.dataset_dir, self.data_dir]
+        if not os.path.exists(self.data_dir):
+            self.data_dir = self.dataset_dir
+
+        required_files = [self.dataset_dir]
         self.check_before_run(required_files)
 
         train, query, gallery = self._process_data()

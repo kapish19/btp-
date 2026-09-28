@@ -15,16 +15,31 @@ class cuhk_sysu(BaseImageDataset):
 
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(cuhk_sysu, self).__init__()
-        self.dataset_dir = os.path.join(root, self.dataset_dir)
-        self.annotation_dir = os.path.join(self.dataset_dir, 'annotation')
-        
-        # Check Image vs cropped_images natively
-        if os.path.exists(os.path.join(self.dataset_dir, 'Image')):
-            self.cropped_images_dir = os.path.join(self.dataset_dir, 'Image')
-        else:
-            self.cropped_images_dir = os.path.join(self.dataset_dir, 'cropped_images')
 
-        required_files = [self.dataset_dir, self.annotation_dir, self.cropped_images_dir]
+        # Auto-detect CUHK-SYSU directory
+        candidates = ['cuhk_sysu', 'cuhk-sysu', 'cuhk_sysu/cuhk_sysu', 'cuhk-sysu/cuhk-sysu', 'CUHK-SYSU']
+        self.dataset_dir = os.path.join(root, 'cuhk_sysu')
+        for cand in candidates:
+            cand_path = os.path.join(root, cand)
+            if os.path.exists(os.path.join(cand_path, 'annotation', 'train.mat')):
+                self.dataset_dir = cand_path
+                break
+            elif os.path.exists(os.path.join(cand_path, 'annotation')):
+                self.dataset_dir = cand_path
+                break
+
+        self.annotation_dir = os.path.join(self.dataset_dir, 'annotation')
+
+        # Auto-detect image folder (Image vs cropped_images vs images)
+        for cand in ['cropped_images', 'Image', 'images', 'image']:
+            cand_p = os.path.join(self.dataset_dir, cand)
+            if os.path.isdir(cand_p):
+                self.cropped_images_dir = cand_p
+                break
+        else:
+            self.cropped_images_dir = os.path.join(self.dataset_dir, 'Image')
+
+        required_files = [self.dataset_dir, self.annotation_dir]
         self.check_before_run(required_files)
 
         train = self._process_dir(self.annotation_dir, self.cropped_images_dir, is_train=True)
@@ -47,7 +62,14 @@ class cuhk_sysu(BaseImageDataset):
         dataset = []
         if is_train:
             mat_path = os.path.join(ann_dir, 'train.mat')
-            if not os.path.exists(mat_path): return []
+            if not os.path.exists(mat_path):
+                # Fallback check inside ann_dir parent
+                for root_d, _, files in os.walk(os.path.dirname(ann_dir)):
+                    if 'train.mat' in files:
+                        mat_path = os.path.join(root_d, 'train.mat')
+                        break
+            if not os.path.exists(mat_path):
+                return []
             mat = sio.loadmat(mat_path)
             train_data = mat['train'][0]
             for item in train_data:
@@ -56,15 +78,8 @@ class cuhk_sysu(BaseImageDataset):
                 for scene in scenes:
                     img_name = str(scene['im_name'][0][0])
                     img_path = os.path.join(img_dir, img_name)
-                    if os.path.exists(img_path):
-                        dataset.append((img_path, pid, 0, 1))
+                    dataset.append((img_path, pid, 0, 1))
         else:
-            test_path = os.path.join(ann_dir, 'test_unhandled.mat')
-            if not os.path.exists(test_path):
-                test_path = os.path.join(ann_dir, 'pool.mat')
-            if not os.path.exists(test_path): return [], []
-            mat = sio.loadmat(test_path)
-            # handle query and gallery
             return [], []
 
         return dataset
