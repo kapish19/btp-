@@ -22,7 +22,7 @@ def setup_data(data_dir="data"):
     if not os.path.exists(market_path):
         print("  📦 Downloading Market-1501 from Kaggle...")
         os.system(f"kaggle datasets download -d pengcw1/market-1501 -p {data_dir}")
-        os.system(f"unzip -q {data_dir}/market-1501.zip -d {data_dir}")
+        os.system(f"unzip -o -q {data_dir}/market-1501.zip -d {data_dir}")
         if os.path.exists(f"{data_dir}/market-1501.zip"): os.remove(f"{data_dir}/market-1501.zip")
     else: print("  ✅ Market-1501 ready.")
 
@@ -31,7 +31,7 @@ def setup_data(data_dir="data"):
     if not os.path.exists(sysu_path):
         print("  📦 Downloading CUHK-SYSU from Kaggle...")
         os.system(f"kaggle datasets download -d manaschaiaonon/cuhk-sysu -p {data_dir}")
-        os.system(f"unzip -q {data_dir}/cuhk-sysu.zip -d {data_dir}")
+        os.system(f"unzip -o -q {data_dir}/cuhk-sysu.zip -d {data_dir}")
         if os.path.exists(f"{data_dir}/cuhk-sysu.zip"): os.remove(f"{data_dir}/cuhk-sysu.zip")
     
     if os.path.exists(f"{sysu_path}/Image") and not os.path.exists(f"{sysu_path}/cropped_images"):
@@ -44,7 +44,7 @@ def setup_data(data_dir="data"):
     if not os.path.exists(cuhk_path):
         print("  📦 Downloading CUHK03 from Kaggle...")
         os.system(f"kaggle datasets download -d priyanagda/cuhk03 -p {data_dir}")
-        os.system(f"unzip -q {data_dir}/cuhk03.zip -d {cuhk_path}")
+        os.system(f"unzip -o -q {data_dir}/cuhk03.zip -d {cuhk_path}")
         if os.path.exists(f"{data_dir}/cuhk03.zip"): os.remove(f"{data_dir}/cuhk03.zip")
 
     # Fetch protocol mat files
@@ -87,7 +87,7 @@ def setup_data(data_dir="data"):
                     print(f"  Trying Kaggle dataset: {ds.ref}...")
                     res = os.system(f"kaggle datasets download -d {ds.ref} -p {data_dir}")
                     if res == 0:
-                        os.system(f"unzip -q {data_dir}/*.zip -d {data_dir}")
+                        os.system(f"unzip -o -q {data_dir}/*.zip -d {data_dir}")
                         break
             except Exception as e:
                 print(f"  Kaggle API search error: {e}")
