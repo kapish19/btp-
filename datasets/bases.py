@@ -176,6 +176,12 @@ class ImageDataset(Dataset):
 
 
 class BaseDataset(object):
+    def check_before_run(self, required_files):
+        if isinstance(required_files, str):
+            required_files = [required_files]
+        for fpath in required_files:
+            if not os.path.exists(fpath):
+                raise RuntimeError('"{}" is not found'.format(fpath))
     """
     Base class of reid dataset
     """
