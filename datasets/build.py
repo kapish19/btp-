@@ -73,6 +73,13 @@ def build_data_loaders(args, args_test, model):
     max_id = 0
     for i,d in enumerate(args.train_datasets):
         dataset = DATASET_REGISTRY.get(d)(root=args.data_path, combineall=args.combine_all)
+        if len(dataset.train) == 0:
+            raise RuntimeError(
+                f"❌ CRITICAL DATASET ERROR: Dataset '{d}' found 0 training images! "
+                f"Resolved folder path was: '{getattr(dataset, 'dataset_dir', args.data_path)}'. "
+                "Please verify dataset files are present."
+            )
+        print(f"✅ Loaded training dataset {d}: {len(dataset.train)} images from {getattr(dataset, 'dataset_dir', args.data_path)}")
         train_items.extend(dataset.train)
         trainstage1_items.append(dataset.train)
         trainstage1_sets[d] = CommDataset(dataset.train,val_transforms,last_id=max_id, is_train=False)

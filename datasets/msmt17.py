@@ -1,7 +1,7 @@
 import os
 import glob
 import re
-from .bases import BaseImageDataset
+from .bases import BaseImageDataset, auto_locate_dataset_dir
 from . import DATASET_REGISTRY
 
 @DATASET_REGISTRY.register()
@@ -17,25 +17,10 @@ class MSMT17(BaseImageDataset):
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(MSMT17, self).__init__()
         
-        # Auto-detect MSMT17 folder case-insensitively
-        possible_dirs = ['MSMT17_V2', 'MSMT17_V1', 'MSMT17', 'msmt17']
-        main_dir = None
-        
-        for p_dir in possible_dirs:
-            if os.path.exists(os.path.join(root, p_dir)):
-                main_dir = p_dir
-                break
-                
-        if main_dir is None and os.path.exists(root):
-            for d in os.listdir(root):
-                if 'msmt17' in d.lower() and os.path.isdir(os.path.join(root, d)):
-                    main_dir = d
-                    break
-
-        if main_dir is None:
-            main_dir = 'MSMT17_V2'
-
-        self.dataset_dir = os.path.join(root, main_dir)
+        self.dataset_dir = auto_locate_dataset_dir(
+            'MSMT17', root=root,
+            markers=['list_train.txt', 'mask_train_v2', 'train_v2', 'list_gallery.txt']
+        )
         self.list_train_path = os.path.join(self.dataset_dir, 'list_train.txt')
         self.list_val_path = os.path.join(self.dataset_dir, 'list_val.txt')
         self.list_query_path = os.path.join(self.dataset_dir, 'list_query.txt')

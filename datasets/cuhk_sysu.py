@@ -1,7 +1,7 @@
 import os
 import glob
 import re
-from .bases import BaseImageDataset
+from .bases import BaseImageDataset, auto_locate_dataset_dir
 from . import DATASET_REGISTRY
 
 @DATASET_REGISTRY.register()
@@ -15,7 +15,10 @@ class cuhk_sysu(BaseImageDataset):
 
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(cuhk_sysu, self).__init__()
-        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.dataset_dir = auto_locate_dataset_dir(
+            'cuhk_sysu', root=root,
+            markers=['annotation', 'cropped_images', 'Image', 'train.mat']
+        )
         self.annotation_dir = os.path.join(self.dataset_dir, 'annotation')
         
         # Check Image vs cropped_images natively

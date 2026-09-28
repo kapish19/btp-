@@ -3,7 +3,7 @@ import glob
 import re
 import scipy.io
 import torch
-from .bases import BaseImageDataset
+from .bases import BaseImageDataset, auto_locate_dataset_dir
 from . import DATASET_REGISTRY
 
 @DATASET_REGISTRY.register()
@@ -18,7 +18,10 @@ class cuhk03(BaseImageDataset):
 
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(cuhk03, self).__init__()
-        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.dataset_dir = auto_locate_dataset_dir(
+            'cuhk03', root=root,
+            markers=['cuhk-03.mat', 'cuhk03_new_protocol_config_detected.mat', 'cuhk03_release', 'images_detected', 'images_labeled']
+        )
         
         # Auto-detect if unzipped inside an archive subfolder
         if os.path.exists(os.path.join(self.dataset_dir, 'archive')):
@@ -31,7 +34,7 @@ class cuhk03(BaseImageDataset):
         self.detected_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_detected.mat')
         self.labeled_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_labeled.mat')
 
-        required_files = [self.dataset_dir, self.data_dir]
+        required_files = [self.dataset_dir]
         self.check_before_run(required_files)
 
         train, query, gallery = self._process_data()

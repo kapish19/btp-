@@ -9,7 +9,7 @@ Structure: bounding_box_train/, bounding_box_test/ (gallery), query/
 import glob
 import os.path as osp
 import re
-from .bases import ImageDataset
+from .bases import ImageDataset, auto_locate_dataset_dir
 from . import DATASET_REGISTRY
 
 
@@ -31,7 +31,10 @@ class OccludedDuke(ImageDataset):
 
     def __init__(self, root='', **kwargs):
         self.root = root
-        self.dataset_dir = osp.join(self.root, self.dataset_dir)
+        self.dataset_dir = auto_locate_dataset_dir(
+            'Occluded_Duke', root=root,
+            markers=['Occluded_Duke', 'DukeMTMC-reID']
+        )
 
         self.train_dir = osp.join(self.dataset_dir, 'bounding_box_train')
         self.query_dir = osp.join(self.dataset_dir, 'query')
