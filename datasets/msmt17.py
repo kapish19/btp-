@@ -2,7 +2,9 @@ import os
 import glob
 import re
 from .bases import BaseImageDataset
+from reidutils.registry import DATASET_REGISTRY
 
+@DATASET_REGISTRY.register()
 class MSMT17(BaseImageDataset):
     """
     MSMT17
