@@ -76,7 +76,11 @@ class MSMT17(BaseImageDataset):
         for c in candidates:
             p = os.path.join(base, c)
             if os.path.isdir(p):
-                return p
+                try:
+                    if len(os.listdir(p)) > 0:
+                        return p
+                except Exception:
+                    return p
         return os.path.join(base, default)
 
     def _process_dir(self, list_path, img_dir, relabel=False):
@@ -89,12 +93,19 @@ class MSMT17(BaseImageDataset):
         if not lines:
             return []
 
-        # Determine path structure ONCE from the first entry (zero disk lag on Drive/Kaggle)
+        # Determine path structure ONCE across first 50 lines (zero disk lag on Drive/Kaggle)
         use_basename = False
-        first_rel = lines[0].strip().split()[0]
-        if not os.path.exists(os.path.join(img_dir, first_rel)):
-            if os.path.exists(os.path.join(img_dir, os.path.basename(first_rel))):
+        for test_line in lines[:50]:
+            parts = test_line.strip().split()
+            if not parts: continue
+            test_rel = parts[0]
+            test_base = os.path.basename(test_rel)
+            if os.path.exists(os.path.join(img_dir, test_base)):
                 use_basename = True
+                break
+            elif os.path.exists(os.path.join(img_dir, test_rel)):
+                use_basename = False
+                break
 
         pid_container = set()
         for line in lines:
