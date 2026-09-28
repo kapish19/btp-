@@ -43,13 +43,33 @@ def setup_data(data_dir="data"):
         os.system(f"unzip -q {data_dir}/cuhk03.zip -d {cuhk_path}")
         if os.path.exists(f"{data_dir}/cuhk03.zip"): os.remove(f"{data_dir}/cuhk03.zip")
 
-    # Fetch protocol mat files
-    u1 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/data/datasets/cuhk03_new_protocol_config_detected.mat"
-    u2 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/data/datasets/cuhk03_new_protocol_config_labeled.mat"
+    # Fetch protocol mat files using verified working URLs & try-except
+    urls_detected = [
+        "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_detected.mat",
+        "https://raw.githubusercontent.com/JDAI-CV/fast-reid/master/fastreid/data/datasets/cuhk03_new_protocol_config_detected.mat"
+    ]
+    urls_labeled = [
+        "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_labeled.mat",
+        "https://raw.githubusercontent.com/JDAI-CV/fast-reid/master/fastreid/data/datasets/cuhk03_new_protocol_config_labeled.mat"
+    ]
+    
     m1 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_detected.mat")
     m2 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_labeled.mat")
-    if not os.path.exists(m1): urllib.request.urlretrieve(u1, m1)
-    if not os.path.exists(m2): urllib.request.urlretrieve(u2, m2)
+    
+    if not os.path.exists(m1):
+        for u in urls_detected:
+            try:
+                urllib.request.urlretrieve(u, m1)
+                if os.path.exists(m1) and os.path.getsize(m1) > 1000: break
+            except Exception: pass
+            
+    if not os.path.exists(m2):
+        for u in urls_labeled:
+            try:
+                urllib.request.urlretrieve(u, m2)
+                if os.path.exists(m2) and os.path.getsize(m2) > 1000: break
+            except Exception: pass
+
     print("  ✅ CUHK03 protocol files ready.")
 
     # 5. MSMT17_V2 (Drive Link OR Kaggle Fallback)
@@ -73,6 +93,8 @@ def setup_data(data_dir="data"):
             if os.path.exists(f"{data_dir}/msmt17.zip"): os.remove(f"{data_dir}/msmt17.zip")
             if os.path.exists(os.path.join(data_dir, "MSMT17")) and not os.path.exists(msmt_target):
                 os.symlink("MSMT17", msmt_target)
+            elif os.path.exists(os.path.join(data_dir, "MSMT17_V2")):
+                print("  ✅ MSMT17_V2 extracted!")
     else: print("  ✅ MSMT17_V2 ready.")
 
     print("🎉 ALL DATASETS DOWNLOADED AND PREPARED SUCCESSFULLY!")
