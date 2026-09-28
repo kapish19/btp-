@@ -33,7 +33,11 @@ def setup_data(data_dir="data"):
         os.system(f"kaggle datasets download -d manaschaiaonon/cuhk-sysu -p {data_dir}")
         os.system(f"unzip -q {data_dir}/cuhk-sysu.zip -d {data_dir}")
         if os.path.exists(f"{data_dir}/cuhk-sysu.zip"): os.remove(f"{data_dir}/cuhk-sysu.zip")
-    else: print("  ✅ CUHK-SYSU ready.")
+    
+    if os.path.exists(f"{sysu_path}/Image") and not os.path.exists(f"{sysu_path}/cropped_images"):
+        os.symlink("Image", f"{sysu_path}/cropped_images")
+        print("  ↳ Created symlink: Image -> cropped_images")
+    print("  ✅ CUHK-SYSU ready.")
 
     # 4. CUHK03 + Protocol Files
     cuhk_path = os.path.join(data_dir, "cuhk03")
@@ -43,36 +47,21 @@ def setup_data(data_dir="data"):
         os.system(f"unzip -q {data_dir}/cuhk03.zip -d {cuhk_path}")
         if os.path.exists(f"{data_dir}/cuhk03.zip"): os.remove(f"{data_dir}/cuhk03.zip")
 
-    # Fetch protocol mat files using verified working URLs & try-except
-    urls_detected = [
-        "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_detected.mat",
-        "https://raw.githubusercontent.com/JDAI-CV/fast-reid/master/fastreid/data/datasets/cuhk03_new_protocol_config_detected.mat"
-    ]
-    urls_labeled = [
-        "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_labeled.mat",
-        "https://raw.githubusercontent.com/JDAI-CV/fast-reid/master/fastreid/data/datasets/cuhk03_new_protocol_config_labeled.mat"
-    ]
-    
+    # Fetch protocol mat files
+    u1 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_detected.mat"
+    u2 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/datasets/cuhk03_new_protocol_config_labeled.mat"
     m1 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_detected.mat")
     m2 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_labeled.mat")
     
     if not os.path.exists(m1):
-        for u in urls_detected:
-            try:
-                urllib.request.urlretrieve(u, m1)
-                if os.path.exists(m1) and os.path.getsize(m1) > 1000: break
-            except Exception: pass
-            
+        try: urllib.request.urlretrieve(u1, m1)
+        except Exception: pass
     if not os.path.exists(m2):
-        for u in urls_labeled:
-            try:
-                urllib.request.urlretrieve(u, m2)
-                if os.path.exists(m2) and os.path.getsize(m2) > 1000: break
-            except Exception: pass
-
+        try: urllib.request.urlretrieve(u2, m2)
+        except Exception: pass
     print("  ✅ CUHK03 protocol files ready.")
 
-    # 5. MSMT17_V2 (Drive Link OR Kaggle Fallback)
+    # 5. MSMT17_V2 (Search Kaggle API dynamically)
     msmt_target = os.path.join(data_dir, "MSMT17_V2")
     if not os.path.exists(msmt_target):
         print("  ⚡ Searching for MSMT17_V2...")
@@ -87,17 +76,26 @@ def setup_data(data_dir="data"):
             os.symlink(found, msmt_target)
             print(f"  ✅ MSMT17_V2 linked from Drive: {found}")
         else:
-            print("  📦 MSMT17 not in Drive. Downloading MSMT17 from Kaggle...")
-            # Try public Kaggle MSMT17 datasets
-            for kaggle_msmt_id in ["minasasa/msmt17", "meowmeowmeowmeowmeow/msmt17", "pengcw1/msmt17"]:
-                res = os.system(f"kaggle datasets download -d {kaggle_msmt_id} -p {data_dir}")
-                if res == 0:
-                    os.system(f"unzip -q {data_dir}/*.zip -d {data_dir}")
-                    break
+            print("  📦 Searching Kaggle API for public MSMT17 datasets...")
+            # Try searching kaggle API for working msmt17 datasets
+            from kaggle.api.kaggle_api_extended import KaggleApi
+            try:
+                api = KaggleApi()
+                api.authenticate()
+                ds_list = api.dataset_list(search="msmt17")
+                for ds in ds_list:
+                    print(f"  Trying Kaggle dataset: {ds.ref}...")
+                    res = os.system(f"kaggle datasets download -d {ds.ref} -p {data_dir}")
+                    if res == 0:
+                        os.system(f"unzip -q {data_dir}/*.zip -d {data_dir}")
+                        break
+            except Exception as e:
+                print(f"  Kaggle API search error: {e}")
+                
             if os.path.exists(os.path.join(data_dir, "MSMT17")) and not os.path.exists(msmt_target):
                 os.symlink("MSMT17", msmt_target)
-            elif os.path.exists(os.path.join(data_dir, "MSMT17_V2")):
-                print("  ✅ MSMT17_V2 extracted!")
+            elif os.path.exists(os.path.join(data_dir, "msmt17")) and not os.path.exists(msmt_target):
+                os.symlink("msmt17", msmt_target)
     else: print("  ✅ MSMT17_V2 ready.")
 
     print("🎉 ALL DATASETS DOWNLOADED AND PREPARED SUCCESSFULLY!")
