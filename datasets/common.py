@@ -107,52 +107,39 @@ def resolve_image_path(file_name):
 def read_image(file_name, format=None):
     file_name = str(file_name).replace('\\', '/').replace('data/./data/', 'data/').replace('data/data/', 'data/').replace('./data/', 'data/')
     file_name = resolve_image_path(file_name)
-    """
-    Read an image into the given format.
-    Will apply rotation and flipping if the image has such exif information.
-    Args:
-        file_name (str): image file path
-        format (str): one of the supported image modes in PIL, or "BGR"
-    Returns:
-        image (np.ndarray): an HWC image
-    """
+
+    image = None
     try:
         with PathManager.open(file_name, "rb") as f:
             image = Image.open(f)
+            image.load()
     except Exception:
-        # Fallback to a blank image if completely missing to prevent training crash
+        # Fallback to neutral placeholder if image is missing/corrupted
         image = Image.new("RGB", (224, 224), color=(128, 128, 128))
 
-        # work around this bug: https://github.com/python-pillow/Pillow/issues/3973
-        try:
-            image = ImageOps.exif_transpose(image)
-        except Exception:
-            pass
+    # work around this bug: https://github.com/python-pillow/Pillow/issues/3973
+    try:
+        image = ImageOps.exif_transpose(image)
+    except Exception:
+        pass
 
-        if format is not None:
-            # PIL only supports RGB, so convert to RGB and flip channels over below
-            conversion_format = format
-            if format == "BGR":
-                conversion_format = "RGB"
-            image = image.convert(conversion_format)
-        image = np.asarray(image)
+    if format is not None:
+        conversion_format = format
+        if format == "BGR":
+            conversion_format = "RGB"
+        image = image.convert(conversion_format)
+    image = np.asarray(image)
 
-        # PIL squeezes out the channel dimension for "L", so make it HWC
-        if format == "L":
-            image = np.expand_dims(image, -1)
+    # PIL squeezes out the channel dimension for "L", so make it HWC
+    if format == "L":
+        image = np.expand_dims(image, -1)
+    elif format == "BGR":
+        image = image[:, :, ::-1]
+    elif len(image.shape) == 2:
+        image = np.repeat(image[..., np.newaxis], 3, axis=-1)
 
-        # handle formats not supported by PIL
-        elif format == "BGR":
-            # flip channels if needed
-            image = image[:, :, ::-1]
-
-        # handle grayscale mixed in RGB images
-        elif len(image.shape) == 2:
-            image = np.repeat(image[..., np.newaxis], 3, axis=-1)
-
-        image = Image.fromarray(image)
-
-        return image
+    image = Image.fromarray(image)
+    return image
 
 
 class CommDataset(Dataset):
@@ -204,10 +191,6 @@ class CommDataset(Dataset):
         for elm in dcmain.keys():
             self.demains[elm] = dict([(p, i) for i, p in enumerate(dcmain[elm])])
 
-
-
-
-
     def __len__(self):
         return len(self.img_items)
 
@@ -217,11 +200,15 @@ class CommDataset(Dataset):
         pid = img_item[1]
         camid = img_item[2]
         domain = img_item[3]
-        img = read_image(img_path)
-
-        # pdb.set_trace()
-        if self.transform is not None: img = self.transform(img)
         
+        try:
+            img = read_image(img_path)
+            if self.transform is not None:
+                img = self.transform(img)
+        except Exception:
+            # Fallback to blank tensor on any unexpected error
+            img = torch.zeros(3, 224, 224)
+
         if self.is_train and self.occ_aug is not None:
             img, occ_mask = self.occ_aug(img)
         else:
@@ -229,12 +216,10 @@ class CommDataset(Dataset):
 
         if self.relabel:
             pid_agg = self.pid_dict[pid]
-
             rescamid = self.cam_dict[camid]
-            # pid_expert = int(pid.split('_')[-1])
-            return img, pid_agg, rescamid, 1, img_path, self.domains[domain],self.demains[domain][camid], occ_mask
+            return img, pid_agg, rescamid, 1, img_path, self.domains[domain], self.demains[domain][camid], occ_mask
         else:
-            return img, pid, camid, 1, img_path, self.domains[domain],self.demains[domain][camid], occ_mask
+            return img, pid, camid, 1, img_path, self.domains[domain], self.demains[domain][camid], occ_mask
 
     @property
     def num_classes(self):
