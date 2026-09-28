@@ -22,13 +22,6 @@ def build_data_loader(args, args_test):
     train_items = list()
     for d in args.train_datasets:
         dataset = DATASET_REGISTRY.get(d)(root=args.data_path, combineall=args.combine_all)
-        if len(dataset.train) == 0:
-            raise RuntimeError(
-                f"❌ CRITICAL DATASET ERROR: Dataset '{d}' found 0 training images! "
-                f"Resolved folder path was: '{getattr(dataset, 'dataset_dir', args.data_path)}'. "
-                "Please verify dataset files are present."
-            )
-        print(f"✅ Loaded training dataset {d}: {len(dataset.train)} images from {getattr(dataset, 'dataset_dir', args.data_path)}")
         train_items.extend(dataset.train)
 
     train_transforms = bulid_transforms(args, is_train=True)
