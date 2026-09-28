@@ -79,6 +79,13 @@ class MSMT17(BaseImageDataset):
 
         pid2label = {pid: label for label, pid in enumerate(sorted(pid_container))}
 
+        # Fast RAM filename caching to prevent 65,000+ FUSE disk stat calls on Kaggle
+        existing_files = set()
+        if os.path.exists(img_dir):
+            for root_d, _, files in os.walk(img_dir):
+                for f in files:
+                    existing_files.add(f)
+
         for line in lines:
             line_str = line.strip()
             if not line_str: continue
@@ -88,8 +95,10 @@ class MSMT17(BaseImageDataset):
             if relabel:
                 pid = pid2label[pid]
             
-            # Extract camera ID from filename
             fname = os.path.basename(img_rel_path)
+            if fname not in existing_files:
+                continue
+
             camid = 0
             try:
                 camid = int(fname.split('_')[2])
@@ -98,10 +107,8 @@ class MSMT17(BaseImageDataset):
                 
             full_img_path = os.path.join(img_dir, img_rel_path)
             if not os.path.exists(full_img_path):
-                # Fallback check directly in img_dir/fname
                 full_img_path = os.path.join(img_dir, fname)
                 
-            if os.path.exists(full_img_path):
-                dataset.append((full_img_path, pid, camid, 0))
+            dataset.append((full_img_path, pid, camid, 0))
 
         return dataset
