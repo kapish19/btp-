@@ -102,8 +102,7 @@ class PartVisibilityGAT(nn.Module):
         self.vis_predictor = nn.Sequential(
             nn.Linear(d_model, d_model // 2),
             nn.ReLU(),
-            nn.Linear(d_model // 2, 1),
-            nn.Sigmoid()
+            nn.Linear(d_model // 2, 1)
         )
         self.recon_gate = nn.Sequential(
             nn.Linear(d_model * 2, d_model),
@@ -116,7 +115,8 @@ class PartVisibilityGAT(nn.Module):
             B = patch_tokens.shape[0]
             dummy_feat = torch.zeros(B, self.num_parts, patch_tokens.shape[-1], device=patch_tokens.device)
             dummy_vis = torch.zeros(B, self.num_parts, 1, device=patch_tokens.device)
-            return dummy_feat, dummy_vis
+            dummy_vis_logits = torch.zeros(B, self.num_parts, 1, device=patch_tokens.device)
+            return dummy_feat, dummy_vis, dummy_vis_logits
             
         B, N, D = patch_tokens.shape
         part_size = N // self.num_parts
@@ -140,8 +140,9 @@ class PartVisibilityGAT(nn.Module):
         attn_weights = F.softmax(attn_scores, dim=-1) # [B, 3, 3]
         attended_nodes = torch.matmul(attn_weights, V) # [B, 3, D]
         
-        # Visibility Prediction
-        vis_scores = self.vis_predictor(part_nodes) # [B, 3, 1]
+        # Visibility Prediction: raw logits + sigmoid probabilities
+        vis_logits = self.vis_predictor(part_nodes) # [B, 3, 1]
+        vis_scores = torch.sigmoid(vis_logits)       # [B, 3, 1]
         
         # Internal Reconstruction Gate
         combined = torch.cat([part_nodes, attended_nodes], dim=-1) # [B, 3, 2D]
@@ -151,7 +152,7 @@ class PartVisibilityGAT(nn.Module):
         # Masking by visibility
         part_features = reconstructed * vis_scores
         
-        return part_features, vis_scores
+        return part_features, vis_scores, vis_logits
 
 
 class GradReverse(torch.autograd.Function):
@@ -265,6 +266,9 @@ class Model(nn.Module):
         self.bottleneck_proj = nn.BatchNorm1d(self.in_planes_proj)
         self.bottleneck_proj.bias.requires_grad_(False)
         self.bottleneck_proj.apply(weights_init_kaiming)
+        self.bottleneck_local = nn.BatchNorm1d(self.in_planes_proj)
+        self.bottleneck_local.bias.requires_grad_(False)
+        self.bottleneck_local.apply(weights_init_kaiming)
         
         # Local classifier
         self.local_classifier = nn.Linear(self.in_planes_proj, self.num_classes, bias=False)
@@ -286,7 +290,7 @@ class Model(nn.Module):
         self.promptlearner = PromptLearner(num_classes, domain_num, clip_model.dtype, clip_model.token_embedding)
 
     def forward(self, x=None, label=None, get_image=False, get_text=False, cam_label=None, view_label=None,
-                domain=None, prior=False, getdomain=False, grl_alpha=0.0, disable_grl=False, disable_part_branch=False):
+                domain=None, prior=False, getdomain=False, grl_alpha=0.0, disable_grl=False, disable_part_branch=False, eval_feat='combined'):
         if get_text:
             return None, None # text pathway is disabled
 
@@ -314,9 +318,9 @@ class Model(nn.Module):
             domain_logits = self.domain_classifier(self.grl(img_feature))
             
         # Part / occlusion branch
-        part_features, vis_scores = self.part_gat(patch_tokens, disable_part_branch=disable_part_branch)
+        part_features, vis_scores, vis_logits = self.part_gat(patch_tokens, disable_part_branch=disable_part_branch)
         
-        # Process part features -> local_feat [B, 512] reusing self.image_encoder.proj? 
+        # Process part features -> local_feat [B, 512] reusing self.image_encoder.proj
         # Design doc: local_feat = proj(part_features.sum(dim=1)) 
         part_sum = part_features.sum(dim=1)
         if self.image_encoder.proj is not None:
@@ -324,7 +328,7 @@ class Model(nn.Module):
         else:
             local_feat_proj = part_sum
             
-        local_feat = self.bottleneck_proj(local_feat_proj)
+        local_feat = self.bottleneck_local(local_feat_proj)
 
         if self.training:
             cls_score = self.classifier(feat)
@@ -337,13 +341,20 @@ class Model(nn.Module):
                 'local_logits': local_logits, 
                 'local_feat': local_feat,
                 'vis_scores': vis_scores, 
+                'vis_logits': vis_logits,
                 'domain_logits': domain_logits,
                 'ortho_loss': self.promptlearner.get_orthogonality_loss()
             }
         else:
-            # Inference: final = normalize(g + l)
-            final_feat = feat_proj + local_feat
-            return final_feat
+            # Inference: L2-normalized feature representation
+            norm_g = F.normalize(feat_proj, p=2, dim=-1)
+            if disable_part_branch or eval_feat == 'global':
+                return norm_g
+            norm_l = F.normalize(local_feat, p=2, dim=-1)
+            if eval_feat == 'local':
+                return norm_l
+            # Architecture spec: final = normalize(g + l)
+            return F.normalize(norm_g + norm_l, p=2, dim=-1)
 
 
     def load_param(self, trained_path):

@@ -94,10 +94,13 @@ def train(train_loader, model, criterion, optimizer, scheduler, testloaders, arg
 
             # torch.cuda.synchronize()
             if (n_iter + 1) % args_train.log_period == 0:
+                lrs = [group['lr'] for group in optimizer.param_groups]
+                base_lr = min(lrs)
+                head_lr = max(lrs)
                 logger_train.info(
-                    "Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Base Lr: {:.2e}"
+                    "Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Backbone Lr: {:.2e}, Head Lr: {:.2e}"
                     .format(epoch, (n_iter + 1), len(train_loader),
-                            loss_meter.avg, scheduler.get_lr()[0]))
+                            loss_meter.avg, base_lr, head_lr))
 
         # Save checkpoint periodically and on final epoch
         if epoch % args_train.checkpoint_period == 0 or epoch == epochs:
@@ -126,19 +129,20 @@ def train(train_loader, model, criterion, optimizer, scheduler, testloaders, arg
                     logger_train.warning(f"Could not sync checkpoint to Google Drive: {e}")
 
         if epoch % args_train.eval_period == 0:
-            test(testloaders, model, logger_test)
+            test(testloaders, model, logger_test, args_train)
 
-def test(testloaders, model, logger_test):
+def test(testloaders, model, logger_test, args=None):
     model.eval()
+    disable_part = getattr(args, 'disable_part_branch', False) if args is not None else False
     maps, r1s, r5s, r10s = [], [], [], []
     for name, val_loader in testloaders.items():
-        evaluator = R1_mAP_eval(val_loader[1], max_rank=10, feat_norm=False, reranking=False)
+        evaluator = R1_mAP_eval(val_loader[1], max_rank=10, feat_norm=True, reranking=False)
         evaluator.reset()
         logger_test.info("Validation Results of {}: ".format(name))
         for n_iter, (img, pids, camids, viewids, domain, cid, _) in enumerate(val_loader[0]):
             with torch.no_grad():
                 img = img.to(device)
-                feat = model(img)
+                feat = model(img, disable_part_branch=disable_part)
                 evaluator.update((feat, pids, camids))
         cmc, mAP, _, _, _, _, _ = evaluator.compute()
         logger_test.info("mAP: {:.1%}".format(mAP))
@@ -224,6 +228,11 @@ if __name__ == "__main__":
             model.load_state_dict(ckpt)
         logger_train.info(f"✅ Resumed training from epoch {start_epoch}")
 
+    if getattr(args_train, 'eval_only', False):
+        logger_train.info("⚡ Running evaluation only (--eval_only)...")
+        test(val_loaders, model, logger_test, args_train)
+        sys.exit(0)
+
     train(train_loader=train_loader_stage2,
           model=model,
           criterion=criterion,
@@ -237,4 +246,4 @@ if __name__ == "__main__":
           epochs=args_train.image_encoder_epoch,
           start_epoch=start_epoch)
 
-    test(val_loaders, model, logger_test)
+    test(val_loaders, model, logger_test, args_train)

@@ -58,6 +58,7 @@ def parse_train_args(parser, datasets=None, classes=None, combine_all=False):
     parser.add_argument('--optimizer', type=str, default='Adam')
     parser.add_argument('--checkpoint_period', type=int, default=10, help='Save checkpoint every N epochs')
     parser.add_argument('--resume', type=str, default='', help='Path to checkpoint .pth file to resume training')
+    parser.add_argument('--eval_only', action='store_true', help='Only evaluate on testloaders and exit')
     parser.add_argument('--log_period', type=int, default=100)
     parser.add_argument('--eval_period', type=int, default=10)
     parser.add_argument('--train_datasets', type=list, default=datasets)

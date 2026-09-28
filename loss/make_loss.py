@@ -40,7 +40,10 @@ class TotalLoss(nn.Module):
         
         if occ_mask is not None:
             # occ_mask is [B, 3, 1] for 3 parts
-            L_occ_sup = self.bce(vis_scores, occ_mask)
+            if 'vis_logits' in outputs:
+                L_occ_sup = self.bce(outputs['vis_logits'], occ_mask.float())
+            else:
+                L_occ_sup = F.binary_cross_entropy(vis_scores.clamp(1e-6, 1.0 - 1e-6), occ_mask.float())
         else:
             # Fallback if no mask (e.g. dummy test, or no occlusion)
             L_occ_sup = torch.tensor(0.0, device=target.device)
