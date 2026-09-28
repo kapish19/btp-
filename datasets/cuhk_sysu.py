@@ -16,7 +16,7 @@ class cuhk_sysu(BaseImageDataset):
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(cuhk_sysu, self).__init__()
 
-        # Auto-detect CUHK-SYSU directory across all common locations
+        # Auto-detect CUHK-SYSU directory
         candidates = [
             os.path.join(root, 'cuhk_sysu'),
             os.path.join(root, 'cuhk-sysu'),
@@ -25,30 +25,20 @@ class cuhk_sysu(BaseImageDataset):
             './cuhk_sysu',
             '../cuhk_sysu',
             '/content/btp_repo/cuhk_sysu',
+            '/content/btp_repo/data/cuhk_sysu',
             '/content/drive/MyDrive/datasets/cuhk_sysu',
             '/content/drive/MyDrive/cuhk_sysu',
         ]
         self.dataset_dir = os.path.join(root, 'cuhk_sysu')
         for cand_path in candidates:
-            if os.path.exists(os.path.join(cand_path, 'annotation', 'train.mat')):
-                self.dataset_dir = cand_path
-                # Ensure symlink in data/ if missing
-                target_link = os.path.join(root, 'cuhk_sysu')
-                if not os.path.exists(target_link) and os.path.abspath(cand_path) != os.path.abspath(target_link):
-                    try:
-                        os.makedirs(root, exist_ok=True)
-                        os.symlink(os.path.abspath(cand_path), target_link)
-                    except Exception:
-                        pass
-                break
-            elif os.path.exists(os.path.join(cand_path, 'annotation')):
+            if os.path.exists(os.path.join(cand_path, 'annotation')):
                 self.dataset_dir = cand_path
                 break
 
         self.annotation_dir = os.path.join(self.dataset_dir, 'annotation')
 
-        # Auto-detect image folder (Image vs cropped_images vs images)
-        for cand in ['cropped_images', 'Image', 'images', 'image']:
+        # Auto-detect image folder (Image/SSM vs Image vs cropped_images)
+        for cand in ['cropped_images', 'Image/SSM', 'Image', 'images', 'image']:
             cand_p = os.path.join(self.dataset_dir, cand)
             if os.path.isdir(cand_p):
                 self.cropped_images_dir = cand_p
@@ -78,29 +68,37 @@ class cuhk_sysu(BaseImageDataset):
         import scipy.io as sio
         dataset = []
         if is_train:
-            mat_path = os.path.join(ann_dir, 'train.mat')
-            if not os.path.exists(mat_path):
-                # Search recursively inside dataset_dir
-                for root_d, _, files in os.walk(self.dataset_dir):
-                    if 'train.mat' in files:
-                        mat_path = os.path.join(root_d, 'train.mat')
+            mat_path = None
+            # Search case-insensitively for *train*.mat anywhere inside dataset_dir
+            for root_d, _, files in os.walk(self.dataset_dir):
+                for f in files:
+                    if 'train' in f.lower() and f.endswith('.mat'):
+                        mat_path = os.path.join(root_d, f)
                         break
-            if not os.path.exists(mat_path):
-                print(f"⚠️ CUHK-SYSU: train.mat not found in {ann_dir}")
+                if mat_path:
+                    break
+
+            if not mat_path or not os.path.exists(mat_path):
+                print(f"⚠️ CUHK-SYSU: No *train*.mat found in {self.dataset_dir}")
                 return []
 
+            print(f"  ↳ CUHK-SYSU: loading annotations from {mat_path}")
             mat = sio.loadmat(mat_path)
-            train_data = mat['train'][0]
+            
+            # Handle key variations ('train' vs 'Train')
+            key = 'train' if 'train' in mat else 'Train' if 'Train' in mat else list(mat.keys())[-1]
+            train_data = mat[key][0]
 
-            # Verify which folder contains the actual train images
+            # Verify and resolve which image folder contains the scene images
             if len(train_data) > 0 and len(train_data[0]['scenes'][0]) > 0:
-                first_name = str(train_data[0]['scenes'][0][0]['im_name'][0][0])
-                if not os.path.exists(os.path.join(img_dir, first_name)):
-                    for alt in ['Image', 'cropped_images', 'images', 'image']:
-                        alt_dir = os.path.join(self.dataset_dir, alt)
-                        if os.path.exists(os.path.join(alt_dir, first_name)):
-                            img_dir = alt_dir
-                            self.cropped_images_dir = alt_dir
+                sample_name = str(train_data[0]['scenes'][0][0]['im_name'][0][0])
+                if not os.path.exists(os.path.join(img_dir, sample_name)):
+                    for cand in [os.path.join(self.dataset_dir, 'Image', 'SSM'),
+                                 os.path.join(self.dataset_dir, 'Image'),
+                                 os.path.join(self.dataset_dir, 'cropped_images')]:
+                        if os.path.exists(os.path.join(cand, sample_name)):
+                            img_dir = cand
+                            self.cropped_images_dir = cand
                             break
 
             for item in train_data:
