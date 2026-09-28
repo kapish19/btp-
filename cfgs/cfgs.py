@@ -23,7 +23,7 @@ def parse_common_args(parser):
     parser.add_argument('--device_id', type=str, default='0')
     parser.add_argument('--device', type=str, default='auto',
                         help='Device: auto | cuda | mps | cpu')
-    parser.add_argument('--num_workers', type=int, default=2)
+    parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--num_instance', type=int, default=4)
     parser.add_argument('--data_path', type=str, default='data', help="dataset root path")
     parser.add_argument('--log_path', type=str, default='logs', help="log path")
@@ -57,7 +57,7 @@ def parse_train_args(parser, datasets=None, classes=None, combine_all=False):
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--optimizer', type=str, default='Adam')
     parser.add_argument('--checkpoint_period', type=int, default=60)
-    parser.add_argument('--log_period', type=int, default=10)
+    parser.add_argument('--log_period', type=int, default=100)
     parser.add_argument('--eval_period', type=int, default=10)
     parser.add_argument('--train_datasets', type=list, default=datasets)
     parser.add_argument('--classes', type=list, default=classes)
