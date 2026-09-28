@@ -23,10 +23,8 @@ def setup_data(data_dir="data"):
         print("  📦 Downloading Market-1501 from Kaggle...")
         os.system(f"kaggle datasets download -d pengcw1/market-1501 -p {data_dir}")
         os.system(f"unzip -q {data_dir}/market-1501.zip -d {data_dir}")
-        if os.path.exists(f"{data_dir}/market-1501.zip"):
-            os.remove(f"{data_dir}/market-1501.zip")
-    else:
-        print("  ✅ Market-1501 ready.")
+        if os.path.exists(f"{data_dir}/market-1501.zip"): os.remove(f"{data_dir}/market-1501.zip")
+    else: print("  ✅ Market-1501 ready.")
 
     # 3. CUHK-SYSU
     sysu_path = os.path.join(data_dir, "cuhk_sysu")
@@ -34,10 +32,8 @@ def setup_data(data_dir="data"):
         print("  📦 Downloading CUHK-SYSU from Kaggle...")
         os.system(f"kaggle datasets download -d manaschaiaonon/cuhk-sysu -p {data_dir}")
         os.system(f"unzip -q {data_dir}/cuhk-sysu.zip -d {data_dir}")
-        if os.path.exists(f"{data_dir}/cuhk-sysu.zip"):
-            os.remove(f"{data_dir}/cuhk-sysu.zip")
-    else:
-        print("  ✅ CUHK-SYSU ready.")
+        if os.path.exists(f"{data_dir}/cuhk-sysu.zip"): os.remove(f"{data_dir}/cuhk-sysu.zip")
+    else: print("  ✅ CUHK-SYSU ready.")
 
     # 4. CUHK03 + Protocol Files
     cuhk_path = os.path.join(data_dir, "cuhk03")
@@ -45,21 +41,18 @@ def setup_data(data_dir="data"):
         print("  📦 Downloading CUHK03 from Kaggle...")
         os.system(f"kaggle datasets download -d priyanagda/cuhk03 -p {data_dir}")
         os.system(f"unzip -q {data_dir}/cuhk03.zip -d {cuhk_path}")
-        if os.path.exists(f"{data_dir}/cuhk03.zip"):
-            os.remove(f"{data_dir}/cuhk03.zip")
+        if os.path.exists(f"{data_dir}/cuhk03.zip"): os.remove(f"{data_dir}/cuhk03.zip")
 
     # Fetch protocol mat files
     u1 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/data/datasets/cuhk03_new_protocol_config_detected.mat"
     u2 = "https://raw.githubusercontent.com/KaiyangZhou/deep-person-reid/master/torchreid/data/datasets/cuhk03_new_protocol_config_labeled.mat"
     m1 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_detected.mat")
     m2 = os.path.join(cuhk_path, "cuhk03_new_protocol_config_labeled.mat")
-    if not os.path.exists(m1):
-        urllib.request.urlretrieve(u1, m1)
-    if not os.path.exists(m2):
-        urllib.request.urlretrieve(u2, m2)
+    if not os.path.exists(m1): urllib.request.urlretrieve(u1, m1)
+    if not os.path.exists(m2): urllib.request.urlretrieve(u2, m2)
     print("  ✅ CUHK03 protocol files ready.")
 
-    # 5. MSMT17_V2 (Link from Drive if present)
+    # 5. MSMT17_V2 (Drive Link OR Kaggle Fallback)
     msmt_target = os.path.join(data_dir, "MSMT17_V2")
     if not os.path.exists(msmt_target):
         print("  ⚡ Searching for MSMT17_V2...")
@@ -72,11 +65,15 @@ def setup_data(data_dir="data"):
                     break
         if found:
             os.symlink(found, msmt_target)
-            print(f"  ✅ MSMT17_V2 linked: {found} -> {msmt_target}")
+            print(f"  ✅ MSMT17_V2 linked from Drive: {found}")
         else:
-            print("  ⚠️ MSMT17_V2 not found. Continuing with Kaggle datasets...")
-    else:
-        print("  ✅ MSMT17_V2 ready.")
+            print("  📦 MSMT17 not in Drive. Downloading MSMT17 from Kaggle...")
+            os.system(f"kaggle datasets download -d pengcw1/msmt17 -p {data_dir}")
+            os.system(f"unzip -q {data_dir}/msmt17.zip -d {data_dir}")
+            if os.path.exists(f"{data_dir}/msmt17.zip"): os.remove(f"{data_dir}/msmt17.zip")
+            if os.path.exists(os.path.join(data_dir, "MSMT17")) and not os.path.exists(msmt_target):
+                os.symlink("MSMT17", msmt_target)
+    else: print("  ✅ MSMT17_V2 ready.")
 
     print("🎉 ALL DATASETS DOWNLOADED AND PREPARED SUCCESSFULLY!")
 
