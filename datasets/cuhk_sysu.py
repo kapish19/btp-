@@ -53,14 +53,13 @@ class cuhk_sysu(BaseImageDataset):
             if not os.path.exists(mat_path): return []
             mat = sio.loadmat(mat_path)
             train_data = mat['train'][0]
-            existing_imgs = set(os.listdir(img_dir)) if os.path.exists(img_dir) else set()
             for item in train_data:
                 pid = int(item['id'][0][0])
                 scenes = item['scenes'][0]
                 for scene in scenes:
                     img_name = str(scene['im_name'][0][0])
-                    if img_name in existing_imgs:
-                        img_path = os.path.join(img_dir, img_name)
+                    img_path = os.path.join(img_dir, img_name)
+                    if os.path.exists(img_path):
                         dataset.append((img_path, pid, 0, 1))
         else:
             test_path = os.path.join(ann_dir, 'test_unhandled.mat')
