@@ -28,7 +28,8 @@ def setup_data(data_dir="data", drive_dir="/content/drive/MyDrive/datasets"):
         {
             "name": "MSMT17_V2",
             "drive_cands": ["MSMT17_V2", "MSMT17", "msmt17"],
-            "kaggle": None, # Provided via Drive
+            "kaggle": "ouassimaazzouzi/msmt17",
+            "unzip_to": "MSMT17_V2",
         },
         {
             "name": "Market-1501-v15.09.15",
