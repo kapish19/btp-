@@ -16,13 +16,30 @@ class cuhk_sysu(BaseImageDataset):
     def __init__(self, root='', verbose=True, pid_begin=0, combineall=False, **kwargs):
         super(cuhk_sysu, self).__init__()
 
-        # Auto-detect CUHK-SYSU directory
-        candidates = ['cuhk_sysu', 'cuhk-sysu', 'cuhk_sysu/cuhk_sysu', 'cuhk-sysu/cuhk-sysu', 'CUHK-SYSU']
+        # Auto-detect CUHK-SYSU directory across all common locations
+        candidates = [
+            os.path.join(root, 'cuhk_sysu'),
+            os.path.join(root, 'cuhk-sysu'),
+            os.path.join(root, 'cuhk_sysu', 'cuhk_sysu'),
+            'cuhk_sysu',
+            './cuhk_sysu',
+            '../cuhk_sysu',
+            '/content/btp_repo/cuhk_sysu',
+            '/content/drive/MyDrive/datasets/cuhk_sysu',
+            '/content/drive/MyDrive/cuhk_sysu',
+        ]
         self.dataset_dir = os.path.join(root, 'cuhk_sysu')
-        for cand in candidates:
-            cand_path = os.path.join(root, cand)
+        for cand_path in candidates:
             if os.path.exists(os.path.join(cand_path, 'annotation', 'train.mat')):
                 self.dataset_dir = cand_path
+                # Ensure symlink in data/ if missing
+                target_link = os.path.join(root, 'cuhk_sysu')
+                if not os.path.exists(target_link) and os.path.abspath(cand_path) != os.path.abspath(target_link):
+                    try:
+                        os.makedirs(root, exist_ok=True)
+                        os.symlink(os.path.abspath(cand_path), target_link)
+                    except Exception:
+                        pass
                 break
             elif os.path.exists(os.path.join(cand_path, 'annotation')):
                 self.dataset_dir = cand_path
@@ -39,14 +56,14 @@ class cuhk_sysu(BaseImageDataset):
         else:
             self.cropped_images_dir = os.path.join(self.dataset_dir, 'Image')
 
-        required_files = [self.dataset_dir, self.annotation_dir]
+        required_files = [self.dataset_dir]
         self.check_before_run(required_files)
 
         train = self._process_dir(self.annotation_dir, self.cropped_images_dir, is_train=True)
         query, gallery = self._process_dir(self.annotation_dir, self.cropped_images_dir, is_train=False)
 
         if verbose:
-            print("=> CUHK-SYSU loaded")
+            print("=> CUHK-SYSU loaded  [dir: {}]".format(self.dataset_dir))
             self.print_dataset_statistics(train, query, gallery)
 
         self.train = train
@@ -63,15 +80,29 @@ class cuhk_sysu(BaseImageDataset):
         if is_train:
             mat_path = os.path.join(ann_dir, 'train.mat')
             if not os.path.exists(mat_path):
-                # Fallback check inside ann_dir parent
-                for root_d, _, files in os.walk(os.path.dirname(ann_dir)):
+                # Search recursively inside dataset_dir
+                for root_d, _, files in os.walk(self.dataset_dir):
                     if 'train.mat' in files:
                         mat_path = os.path.join(root_d, 'train.mat')
                         break
             if not os.path.exists(mat_path):
+                print(f"⚠️ CUHK-SYSU: train.mat not found in {ann_dir}")
                 return []
+
             mat = sio.loadmat(mat_path)
             train_data = mat['train'][0]
+
+            # Verify which folder contains the actual train images
+            if len(train_data) > 0 and len(train_data[0]['scenes'][0]) > 0:
+                first_name = str(train_data[0]['scenes'][0][0]['im_name'][0][0])
+                if not os.path.exists(os.path.join(img_dir, first_name)):
+                    for alt in ['Image', 'cropped_images', 'images', 'image']:
+                        alt_dir = os.path.join(self.dataset_dir, alt)
+                        if os.path.exists(os.path.join(alt_dir, first_name)):
+                            img_dir = alt_dir
+                            self.cropped_images_dir = alt_dir
+                            break
+
             for item in train_data:
                 pid = int(item['id'][0][0])
                 scenes = item['scenes'][0]
