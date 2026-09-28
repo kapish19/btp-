@@ -143,14 +143,31 @@ if __name__ == "__main__":
     temp_args, _ = parser.parse_known_args()
     benchmark = getattr(temp_args, 'benchmark', 'protocol2')
     held_out_domain = getattr(temp_args, 'held_out_domain', 'Market')
+    no_sysu = getattr(temp_args, 'no_sysu', False)
     
     if benchmark == 'protocol2':
-        parsertrain, parsertest, logname = protocol_2(parser, parser_test, held_out_domain)
+        parsertrain, parsertest, logname = protocol_2(parser, parser_test, held_out_domain, no_sysu=no_sysu)
     else:
         parsertrain, parsertest, logname = protocol_occluded_duke(parser, parser_test)
 
     args_train = parsertrain.parse_known_args()[0]
     args_test = parsertest.parse_known_args()[0]
+
+    # Auto-filter any dataset that has 0 images on disk
+    from datasets import DATASET_REGISTRY
+    valid_train = []
+    valid_classes = []
+    for d, c in zip(args_train.train_datasets, args_train.classes):
+        ds_test = DATASET_REGISTRY.get(d)(root=args_train.data_path, verbose=False)
+        if len(ds_test.train) > 0:
+            valid_train.append(d)
+            valid_classes.append(c)
+        else:
+            print(f"⚠️ Dataset '{d}' returned 0 training images. Automatically excluding from training domains.")
+
+    args_train.train_datasets = valid_train
+    args_train.classes = valid_classes
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     time_now = str(datetime.datetime.now())[:-7]
     log_path = os.path.join(args_train.log_path, logname + '_' + args_train.backbone + '_' + time_now)

@@ -74,6 +74,7 @@ def parse_train_args(parser, datasets=None, classes=None, combine_all=False):
                         help='If >0, subsample this many PIDs per source dataset for debug')
     parser.add_argument('--disable_grl', action='store_true', help='Disable Gradient Reversal Layer')
     parser.add_argument('--disable_part_branch', action='store_true', help='Disable PartVisibilityGAT branch')
+    parser.add_argument('--no_sysu', action='store_true', help='Exclude cuhk_sysu from training datasets')
     return parser
 
 
@@ -101,12 +102,14 @@ def protocol_1(parser, parsertest):
 # Protocol 2: leave-one-out (config-driven, no code change)
 # ============================================================
 
-def protocol_2(parser, parsertest, held_out_domain="Market"):
+def protocol_2(parser, parsertest, held_out_domain="Market", no_sysu=False):
     """
     Leave-one-out split: train on 3 source datasets, test on held_out_domain.
     The held_out_domain is specified via --held_out_domain arg.
     """
     source_datasets = [d for d in ALL_SOURCE_DATASETS if d != held_out_domain]
+    if no_sysu and "cuhk_sysu" in source_datasets:
+        source_datasets.remove("cuhk_sysu")
     source_classes = [DATASET_CLASSES[d] for d in source_datasets]
     test_datasets = [held_out_domain]
 
