@@ -9,7 +9,7 @@ import os.path as osp
 import re
 import warnings
 import pdb
-from .bases import ImageDataset, auto_locate_dataset_dir
+from .bases import ImageDataset
 from . import DATASET_REGISTRY
 
 
@@ -32,12 +32,19 @@ class Market(ImageDataset):
     dataset_name = "market1501"
 
     def __init__(self, root="", market1501_500k=False, **kwargs):
+        # self.root = osp.abspath(osp.expanduser(root))
         self.root = root
-        self.data_dir = auto_locate_dataset_dir(
-            'Market-1501-v15.09.15', root=root,
-            markers=['bounding_box_train', 'bounding_box_test', 'query']
-        )
-        self.dataset_dir = self.data_dir
+        self.dataset_dir = osp.join(self.root, self.dataset_dir)
+
+        # allow alternative directory structure
+        self.data_dir = self.dataset_dir
+        data_dir = osp.join(self.data_dir, 'Market-1501-v15.09.15')
+        if osp.isdir(data_dir):
+            self.data_dir = data_dir
+        else:
+            warnings.warn('The current data structure is deprecated. Please '
+                          'put data folders such as "bounding_box_train" under '
+                          '"Market-1501-v15.09.15".')
 
         self.train_dir = osp.join(self.data_dir, 'bounding_box_train')
         self.query_dir = osp.join(self.data_dir, 'query')

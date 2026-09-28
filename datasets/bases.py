@@ -7,55 +7,10 @@
 import copy
 import logging
 import os
-import glob
 from tabulate import tabulate
 from termcolor import colored
 import pdb
 logger = logging.getLogger(__name__)
-
-def auto_locate_dataset_dir(dataset_name, root='', markers=None):
-    """
-    Locates the dataset directory automatically across root, Kaggle input, Colab content, and local subdirs.
-    """
-    if markers is None:
-        markers = []
-    if isinstance(markers, str):
-        markers = [markers]
-
-    # 1. Check direct paths in root
-    if root and os.path.exists(root):
-        for m in markers:
-            if os.path.exists(os.path.join(root, m)):
-                return root
-        try:
-            for sub in os.listdir(root):
-                sub_path = os.path.join(root, sub)
-                if os.path.isdir(sub_path):
-                    for m in markers:
-                        if os.path.exists(os.path.join(sub_path, m)):
-                            return sub_path
-        except Exception:
-            pass
-
-    # 2. Check standard environments: root, data, /kaggle/input, /content, .
-    search_roots = [root, 'data', '/kaggle/input', '/content', '.']
-    search_roots = [r for r in search_roots if r and os.path.exists(r)]
-
-    for s_root in search_roots:
-        for m in markers:
-            pattern = os.path.join(s_root, '**', m)
-            matches = glob.glob(pattern, recursive=True)
-            if matches:
-                first_match = matches[0]
-                if os.path.isdir(first_match) and os.path.basename(first_match) not in [
-                    'bounding_box_train', 'annotation', 'cropped_images', 'Image', 'images_detected', 'images_labeled', 'cuhk03_release'
-                ]:
-                    return first_match
-                else:
-                    return os.path.dirname(first_match)
-
-    return os.path.join(root, dataset_name) if root else dataset_name
-
 
 
 class Dataset(object):
