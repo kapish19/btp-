@@ -160,8 +160,11 @@ if __name__ == "__main__":
     logger_train.info("Training cfgs- {}".format(str(args_train)))
     logger_train.info("Running protocol- {}->{}".format(args_train.train_datasets, args_test.test_datasets))
 
+    logger_train.info("Building model architecture...")
     model = get_model(args_train).to(device)
+    logger_train.info("Building data loaders and reading dataset annotations...")
     train_loader_stage1, train_loader_stage2, val_loaders = build_data_loader(args_train, args_test)
+    logger_train.info("Data loaders ready. Total training batches per epoch: {}".format(len(train_loader_stage2)))
     criterion = make_loss(sum(args_train.classes))
 
     optimizer_image_encoder = make_optimizer_for_IE(model, args_train)
